@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Strata: C4 diagram studio</title>
+    <title>C4Model: C4 diagram studio</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap"
       rel="stylesheet"
@@ -876,7 +876,7 @@
             rx="1"
             fill="#fff"
           /></svg
-        >Strata
+        >C4Model
       </div>
       <button class="ib" id="t1" title="Shared model">Model</button>
       <div id="tabs"></div>
@@ -1315,7 +1315,7 @@
         lastDown = {},
         modelDragId = null;
       try {
-        S = JSON.parse(localStorage.getItem("strata1"));
+        S = JSON.parse(localStorage.getItem("c4model1"));
       } catch (e) {}
       const restored = !!(
         S &&
@@ -1332,7 +1332,7 @@
         };
       const save = () => {
         try {
-          localStorage.setItem("strata1", JSON.stringify(S));
+          localStorage.setItem("c4model1", JSON.stringify(S));
         } catch (e) {}
       };
       const V = () => S.views.find((v) => v.id === S.cur),
@@ -2322,7 +2322,7 @@
         e.dataTransfer.setData("text/plain", kind);
         if (t.dataset.m) {
           modelDragId = t.dataset.m;
-          e.dataTransfer.setData("application/x-strata-model", t.dataset.m);
+          e.dataTransfer.setData("application/x-c4model-model", t.dataset.m);
         } else modelDragId = null;
       });
       $("#lp").addEventListener("dragover", (e) => {
@@ -2649,7 +2649,7 @@
                 : "light")) === "dark";
         r.dataset.theme = d ? "light" : "dark";
         try {
-          localStorage.setItem("strata-theme", r.dataset.theme);
+          localStorage.setItem("c4model-theme", r.dataset.theme);
         } catch (e) {}
       };
       $("#nw").onclick = () => {
@@ -2671,7 +2671,7 @@
         boot();
       };
       try {
-        const t = localStorage.getItem("strata-theme");
+        const t = localStorage.getItem("c4model-theme");
         if (t) document.documentElement.dataset.theme = t;
       } catch (e) {}
       function toDSL() {
@@ -2689,7 +2689,7 @@
             container: "container",
             component: "component",
           },
-          o = ['workspace "Strata" {', "    model {"];
+          o = ['workspace "C4Model" {', "    model {"];
         const el = (e, ind) => {
           const a = [q(e.name), q(e.desc)],
             cn = e.type === "container" || e.type === "component",
