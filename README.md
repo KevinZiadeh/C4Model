@@ -45,7 +45,7 @@ If there is no saved model, C4Model looks in the same folder for `default.dsl`, 
 
 **Code** opens the workspace as a Structurizr style DSL. You can edit it, **Apply to diagrams**, copy it, download it as `workspace.dsl`, or open a `.dsl` file. Applying text replaces the current workspace. Relationship statements export the edges; view properties export their bends, label offsets, and layer positions too. C4Model adds `code` elements and layout properties to this DSL, so it is not guaranteed to import unchanged into Structurizr.
 
-**Share** copies a URL with the complete workspace as Base64 encoded JSON in its `share` query parameter. Opening it loads that snapshot. Your first edit saves it locally and removes the query parameter from the address bar so a reload uses your edited copy. The link itself is static: make a new link after changes. Large models produce long URLs, which some messaging apps or browsers may reject; use **Code → Download .dsl** for those.
+**Share** compresses the complete workspace with LZMA level 7, then copies a URL with the compressed bytes encoded as Base64 in its `share` query parameter. Opening it loads that snapshot; older links containing Base64 encoded JSON also work. Your first edit saves it locally and removes the query parameter from the address bar so a reload uses your edited copy. The link itself is static: make a new link after changes. Large models can still produce long URLs, which some messaging apps or browsers may reject; use **Code → Download .dsl** for those.
 
 The text format supports separate code nodes and their relationships, for example:
 
