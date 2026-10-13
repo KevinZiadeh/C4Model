@@ -637,6 +637,12 @@
       .ep.conn { stroke: var(--ac); stroke-width: 2.3; }
       .ah.conn { fill: var(--ac); }
       .el.conn { border-color: var(--ac); color: var(--ac); }
+      .ep.tag-flow { stroke: var(--flow-color); stroke-width: 2.3; }
+      .ah.tag-flow { fill: var(--flow-color); }
+      .flow, .flow * { pointer-events: none; }
+      .flow-bubble { transform: scale(var(--iz, 1)); }
+      .flow-halo { fill: var(--flow-color); opacity: .25; }
+      .flow-core { fill: var(--flow-color); stroke: var(--sf); stroke-width: 1.5; }
       #tl {
         stroke: var(--ac);
         stroke-width: 2;
@@ -888,7 +894,7 @@
       .lts,#ts{z-index:5}
       #reset-layer:disabled{opacity:.45;cursor:not-allowed}
       @media (max-width:700px){.dlg{left:14px;right:14px;bottom:14px}}
-      @media (prefers-reduced-motion:reduce){.bd,.dlg{animation:none}}
+      @media (prefers-reduced-motion:reduce){.bd,.dlg{animation:none}.flow{display:none}}
     </style>
   </head>
   <body>
@@ -1913,6 +1919,7 @@
         );
         if (hl && !tc[hl]) hl = null;
         let svg = "",
+          flows = "",
           handles = "",
           nodes = "",
           lab = "",
@@ -1972,9 +1979,17 @@
             d = rpath(P, 12),
             r0 = q.rs[0],
             hs = (id) => (R[id].e.tags || []).includes(hl),
-            dm = (hl && !(hs(q.a) || hs(q.b))) || (focused && !activeKeys.has(key)) ? " dm" : "";
+            flow = !!hl && (hs(q.a) || hs(q.b)),
+            dm = (hl && !flow) || (focused && !activeKeys.has(key)) ? " dm" : "";
           EG[key] = { a: q.a, b: q.b, pts: P, hz, s0, t0, routed: rt, r0: r0.id };
-          svg += `<path class="eh" data-e="${r0.id}" d="${d}"/><path class="ep${on}${dm}" d="${d}"/><path class="ah${on}${dm}" d="M0 0L-11-5L-11 5z" style="transform:translate(${e1.x}px,${e1.y}px) rotate(${ang}deg) scale(var(--iz,1))"/>`;
+          svg += `<path class="eh" data-e="${r0.id}" d="${d}"/><path class="ep${on}${dm}${flow ? " tag-flow" : ""}" d="${d}"/><path class="ah${on}${dm}${flow ? " tag-flow" : ""}" d="M0 0L-11-5L-11 5z" style="transform:translate(${e1.x}px,${e1.y}px) rotate(${ang}deg) scale(var(--iz,1))"/>`;
+          if (flow) {
+            const length = sum(P.slice(1).map((p, i) => Math.hypot(p.x - P[i].x, p.y - P[i].y))),
+              duration = Math.max(1.8, Math.min(7, length / 90)),
+              bubbles = length < 160 ? 1 : Math.min(3, Math.max(2, Math.round(length / 220)));
+            for (let i = 0; i < bubbles; i++)
+              flows += `<g class="flow"><animateMotion path="${d}" dur="${duration.toFixed(2)}s" begin="-${(duration * i / bubbles).toFixed(2)}s" repeatCount="indefinite"/><g class="flow-bubble"><circle class="flow-halo" r="7"/><circle class="flow-core" r="3.5"/></g></g>`;
+          }
           if (on)
             P.slice(1).forEach((v, k) => {
               const u = P[k];
@@ -1995,7 +2010,9 @@
             dim = (hl && !(e.tags || []).includes(hl)) || (focused && !linked.has(id));
           nodes += `<div class="n ${e.type}${r.ex ? " x" : ""}${r.stub ? " stub" : ""}${sp && sp.c === 1 ? " cc" : sp && sp.c === 2 ? " ct" : ""}${dim ? " dm" : ""}${hl && (e.tags || []).includes(hl) ? " hl" : ""}${focused && linked.has(id) && id !== focused ? " conn" : ""}${focused === id ? " sel" : ""}" data-id="${esc(id)}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;--c:${t[1]};--tc:${hl ? tcol(hl) : "transparent"}">${shapeSVG(e, r)}<div class="in" style="padding:${ins[0]}px ${ins[1]}px ${ins[2] + bt + (children && !r.stub ? 15 : 0)}px ${ins[3]}px"><div class="tp">${t[0]}</div><div class="nm">${esc(e.name)}</div>${e.tech ? `<div class="tech">[${esc(e.tech)}]</div>` : ""}${e.desc ? `<div class="desc">${esc(e.desc)}</div>` : ""}${(L > 3 || e.type === "code") && e.code && !r.ex ? `<div class="code">${esc(e.code)}</div>` : ""}</div><span class="ic" style="top:${icp[0]}px;right:${icp[1]}px">${ico(e)}</span>${children && !r.stub ? `<button class="zoom" data-dive="${esc(id)}" title="Open ${esc(e.name)}" aria-label="Open ${esc(e.name)}"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L21 21M10 7v6M7 10h6"/></svg></button>` : ""}<i class="h" data-from="${esc(id)}"></i></div>`;
         });
-        ES.innerHTML = svg;
+        ES.innerHTML = svg + flows;
+        if (hl) ES.style.setProperty("--flow-color", tcol(hl));
+        else ES.style.removeProperty("--flow-color");
         ND.innerHTML = grps + nodes + lab;
         HS.innerHTML = handles;
         if (FOC)

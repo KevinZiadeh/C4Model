@@ -35,6 +35,7 @@ If there is no saved model, C4Model looks in the same folder for `default.dsl`, 
 - Select a node and drag the round dot on its right edge to another node to connect them. Click a relationship to edit its label and technology. Drag the label to move it; double click the label to center it again. Drag a round edge handle to move a segment, or double click one to add another bend. Double click an edge line to clear its bends. Bends follow their endpoints when nodes move. Relationships between children keep the same bends and label placement at a given L-level whether you use the bottom bar or open their parent.
 - Use **+ New diagram** to create another view of the same model. Drag existing items from the shared model to show them in that view. Visual groups can be assigned in the inspector.
 - Add comma separated tags in the inspector. The colored strips on nodes and the **Tags** legend show them; click a legend tag to focus its nodes and connections.
+- Selecting a tag also sends animated circles along its connected edges in the relationship direction. Click the tag again to clear the highlight and animation.
 
 ### Code blocks at L4
 
