@@ -12,14 +12,63 @@
 
 # C4Model
 
-C4Model is a browser-based C4 diagram editor. The app lives in a single file, [c4model.html](c4model.html), and needs no build tools or server-side code.
+C4Model is a browser based editor for exploring a software system from context (L1) down to code (L4). You can arrange diagrams visually, then export the model and its layout as text. The app is a single file, [c4model.html](c4model.html); it has no build step or backend.
 
-## Run locally
+## Start
 
-From the repository directory, run:
+Open `c4model.html` in a browser, or serve this folder locally:
 
 ```sh
 python3 -m http.server 8000
 ```
 
-Open <http://localhost:8000/c4model.html>.
+Then open <http://localhost:8000/c4model.html>. Your workspace is saved in this browser's local storage as you edit. **New** clears it and starts a blank workspace.
+
+If there is no saved model, C4Model looks in the same folder for `default.dsl`, `diagram.dsl`, `model.dsl`, then `workspace.dsl` (in that order). The first file found is loaded automatically. A share link takes priority over both a saved model and an auto loaded file.
+
+## Build a diagram
+
+- Drag an element or shape from **Model** onto the canvas. Drop a container, component, or code block inside a parent to nest it. Click an item in the shared model to show or select it in the current diagram. Drag one model item onto another in the sidebar to change its parent.
+- Click a node to edit its name, type, description, technology, icon, shape, tags, code, or parent. Descriptions make boxes taller as needed. Click a node to highlight its visible connections and the nodes at their other ends.
+- Drag a node to position it. Use the L1–L4 buttons to change detail. Each level can have its own positions for the same nodes. The top **Reset position of this layer** button on L2–L4 copies the preceding level's positions into the current level; you can then adjust them. **Fit** frames the diagram.
+- Double click a node, or click its magnifying glass, to open its children in a new layer. The opened layer uses the active L-level (or the next level needed to show children), so child positions match the main canvas at that level. Moving a child in either view updates the other. Use the breadcrumb or × to go back. **Reset position of this layer** in the opened layer's header resets only its visible children at that L-level; other opened elements keep their positions.
+- Select a node and drag the round dot on its right edge to another node to connect them. Click a relationship to edit its label and technology. Drag the label to move it; double click the label to center it again. Drag a round edge handle to move a segment, or double click one to add another bend. Double click an edge line to clear its bends. Bends follow their endpoints when nodes move. Relationships between children keep the same bends and label placement at a given L-level whether you use the bottom bar or open their parent.
+- Use **+ New diagram** to create another view of the same model. Drag existing items from the shared model to show them in that view. Visual groups can be assigned in the inspector.
+- Add comma separated tags in the inspector. The colored strips on nodes and the **Tags** legend show them; click a legend tag to focus its nodes and connections.
+
+### Code blocks at L4
+
+**Code block** is a node type. Add several under a component, give each one its own description and code in the inspector, then connect them with ordinary relationships. They appear as nodes at L4 and when you open their parent. Existing code notes on other element types also appear at L4. Code blocks can contain further code blocks.
+
+## Save, share, and edit as text
+
+**Code** opens the workspace as a Structurizr style DSL. You can edit it, **Apply to diagrams**, copy it, download it as `workspace.dsl`, or open a `.dsl` file. Applying text replaces the current workspace. Relationship statements export the edges; view properties export their bends, label offsets, and layer positions too. C4Model adds `code` elements and layout properties to this DSL, so it is not guaranteed to import unchanged into Structurizr.
+
+**Share** copies a URL with the complete workspace as Base64 encoded JSON in its `share` query parameter. Opening it loads that snapshot. Your first edit saves it locally and removes the query parameter from the address bar so a reload uses your edited copy. The link itself is static: make a new link after changes. Large models produce long URLs, which some messaging apps or browsers may reject; use **Code → Download .dsl** for those.
+
+The text format supports separate code nodes and their relationships, for example:
+
+```text
+workspace "Example" {
+    model {
+        app = softwareSystem "Shop" "Example application" {
+            api = container "API" "Receives orders" "Node.js" {
+                orders = component "Orders" "Processes an order" "TypeScript" {
+                    validate = code "Validate" "Check the request" "TypeScript" {
+                        properties {
+                            "code" "if (!valid(order)) throw Error('invalid');"
+                        }
+                    }
+                    persist = code "Persist" "Store the order" "TypeScript"
+                }
+            }
+        }
+        validate -> persist "calls"
+    }
+    views {
+        custom "v1" "Order flow" {
+            include app
+        }
+    }
+}
+```

@@ -86,6 +86,8 @@
         background: var(--sf);
         border-bottom: 1px solid var(--ln);
         z-index: 6;
+        overflow-x: auto;
+        flex: none;
       }
       .lg {
         display: flex;
@@ -393,6 +395,9 @@
         border-radius: 14px;
         box-shadow: var(--sh);
         z-index: 5;
+        max-width: calc(100% - 20px);
+        box-sizing: border-box;
+        overflow-x: auto;
       }
       .lv {
         border: 0;
@@ -511,9 +516,6 @@
       .ct .tp {
         padding-right: 0;
       }
-      .cc .desc {
-        display: none;
-      }
       .tp {
         font-size: 10px;
         font-weight: 600;
@@ -532,11 +534,8 @@
         font-size: 11px;
         color: var(--mu);
         margin-top: 3px;
-        display: -webkit-box;
-        line-clamp: 2;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
       }
       .x .desc {
         display: none;
@@ -550,8 +549,32 @@
         padding: 5px 7px;
         margin-top: 6px;
         white-space: pre-wrap;
+        overflow-wrap: anywhere;
         color: var(--tx);
       }
+      .n.conn .sp {
+        stroke: var(--ac);
+        stroke-width: 2.6;
+      }
+      .zoom {
+        position: absolute;
+        right: 8px;
+        bottom: 10px;
+        z-index: 2;
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        padding: 3px;
+        border: 1px solid var(--ln);
+        border-radius: 7px;
+        background: var(--sf);
+        color: var(--c);
+        cursor: zoom-in;
+        pointer-events: auto;
+      }
+      .zoom svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+      .zoom:hover { border-color: var(--ac); color: var(--ac); }
       .h {
         position: absolute;
         right: 0;
@@ -582,6 +605,7 @@
         max-width: 240px;
         overflow: hidden;
         text-overflow: ellipsis;
+        user-select: none;
       }
       .el.sel {
         border-color: var(--ac);
@@ -610,6 +634,9 @@
       .ah.sel {
         fill: var(--ac);
       }
+      .ep.conn { stroke: var(--ac); stroke-width: 2.3; }
+      .ah.conn { fill: var(--ac); }
+      .el.conn { border-color: var(--ac); color: var(--ac); }
       #tl {
         stroke: var(--ac);
         stroke-width: 2;
@@ -832,9 +859,11 @@
       @keyframes dli{from{opacity:0;transform:translateY(26px)}}
       .dh{display:flex;align-items:center;gap:8px;height:38px;padding:0 8px 0 14px;flex:none;background:var(--sf);border-bottom:1px solid var(--ln)}
       .bc{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mu)}
+      .ll{font-size:11px;font-weight:600;color:var(--mu);white-space:nowrap}
       .bc a{cursor:pointer}.bc a:hover{color:var(--tx)}.bc i{margin:0 7px;opacity:.5;font-style:normal}.bc b{color:var(--tx)}
       .cx{border:0;background:transparent;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;color:var(--mu)}
       .cx:hover{background:var(--sf2);color:var(--tx)}
+      .dh .lr{flex:none;padding:4px 8px}
       .lc{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:grab;background-image:radial-gradient(circle,var(--dot) 1.2px,transparent 1.4px)}
       .lw{position:absolute;left:0;top:0;transform-origin:0 0}
       .lw.an{transition:transform .4s cubic-bezier(.2,.8,.2,1)}
@@ -842,13 +871,22 @@
       .lts{display:none}
       .lnd{position:absolute;left:0;top:0}
       .ltl{stroke:var(--ac);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}
-      .n.stub .tp,.n.stub .tech,.n.stub .desc,.n.stub .ic,.n.stub .h,.n.stub .code{display:none}
+      .n.stub .tp,.n.stub .tech,.n.stub .desc,.n.stub .ic,.n.stub .h,.n.stub .code,.n.stub .zoom{display:none}
       .n.stub .nm{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       #st.lo #hud{display:none}
       .wh,.wh circle{pointer-events:all}
       .wh circle{fill:var(--sf);stroke:var(--ac);stroke-width:2;vector-effect:non-scaling-stroke}
       .wh:hover circle{fill:var(--ac)}
       .wh.h{cursor:ns-resize}.wh.v{cursor:ew-resize}.wh.d{cursor:move}
+      .les,.lhs,#es,#hs{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none}
+      /* Expanded parents are a backdrop; edges remain clickable above them. */
+      .n.x{z-index:0}
+      .les,#es{z-index:1}
+      .n:not(.x){z-index:2}
+      .n:not(.x).hl,.el{z-index:3}
+      .lhs,#hs{z-index:4}
+      .lts,#ts{z-index:5}
+      #reset-layer:disabled{opacity:.45;cursor:not-allowed}
       @media (max-width:700px){.dlg{left:14px;right:14px;bottom:14px}}
       @media (prefers-reduced-motion:reduce){.bd,.dlg{animation:none}}
     </style>
@@ -883,9 +921,11 @@
       <button class="ib" id="zo">−</button><span id="zp">100%</span
       ><button class="ib" id="zi">+</button>
       <button class="ib" id="zf" title="Fit to view">Fit</button
+      ><button class="ib" id="reset-layer" title="Copy positions from the previous layer into this layer">Reset position of this layer</button
       ><button class="ib" id="tgb" title="Show or hide the tag legend">
         Tags</button
       ><button class="ib" id="cb" title="Export or import as code">Code</button
+      ><button class="ib" id="share" title="Copy a link containing this workspace">Share</button
       ><button class="ib" id="th" title="Theme">◐</button
       ><button class="ib" id="nw" title="Start a new blank workspace">
         New</button
@@ -896,6 +936,7 @@
         <div id="w">
           <svg id="es"></svg>
           <div id="nd"></div>
+          <svg id="hs"></svg>
           <svg id="ts"><line id="tl" /></svg>
         </div>
       </div>
@@ -958,6 +999,7 @@
         system: ["Software system", "#5b8cff"],
         container: ["Container", "#22c3a6"],
         component: ["Component", "#f5a524"],
+        code: ["Code block", "#e879f9"],
         external: ["External system", "#94a3b8"],
       };
       const rr = (rx) => (w, h) => [
@@ -1215,7 +1257,7 @@
         "Component",
       ];
       const shp = (e) =>
-        SHP[e.shape] ? e.shape : e.type === "person" ? "Person" : "RoundedBox";
+        SHP[e.shape] ? e.shape : e.type === "person" ? "Person" : e.type === "code" ? "Terminal" : "RoundedBox";
       function shapeSVG(e, r) {
         const sp = r.ex || r.stub ? null : SHP[shp(e)],
           body = sp ? sp.b(r.w, r.h) : rr(16)(r.w, r.h),
@@ -1243,6 +1285,7 @@
           '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
         component:
           '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/>',
+        code: '<path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/>',
         external:
           '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/>',
         database:
@@ -1299,6 +1342,7 @@
         w = $("#w"),
         ES = $("#es"),
         ND = $("#nd"),
+        HS = $("#hs"),
         TS = $("#ts"),
         TL = $("#tl"),
         FOC = null,
@@ -1314,14 +1358,90 @@
         editTab = null,
         lastDown = {},
         modelDragId = null;
+      const shareParam = new URLSearchParams(location.search).get("share");
+      let shareLoaded = false,
+        shareError = "";
+      const validWorkspace = (s) =>
+        s && Array.isArray(s.els) && Array.isArray(s.rels) &&
+        Array.isArray(s.views) && s.views.length > 0 &&
+        s.views.some((v) => v.id === s.cur && v.nodes && typeof v.nodes === "object");
+      const validShareWorkspace = (s) => {
+        try {
+          if (!validWorkspace(s)) return false;
+          const safeId = (id) =>
+              typeof id === "string" && /^[^\s"'<> =&]+$/.test(id) &&
+              !["__proto__", "constructor", "prototype"].includes(id),
+            point = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.y),
+            pointsByLayer = (layers) =>
+              !layers || Object.values(layers).every(
+                (m) => m && typeof m === "object" && Object.values(m).every(point),
+              ),
+            ids = new Set(s.els.map((e) => e.id));
+          if (ids.size !== s.els.length || !s.els.every((e) =>
+            safeId(e.id) && Object.prototype.hasOwnProperty.call(TY, e.type) &&
+            typeof e.name === "string" && (!e.parent || ids.has(e.parent)) &&
+            (!e.shape || Object.prototype.hasOwnProperty.call(SHP, e.shape)) &&
+            (!e.icon || Object.prototype.hasOwnProperty.call(IC, e.icon)) &&
+            (!e.tags || (Array.isArray(e.tags) && e.tags.every((t) => typeof t === "string")))))
+            return false;
+          for (const e of s.els) {
+            const seen = new Set();
+            let current = e;
+            while (current && current.parent) {
+              if (seen.has(current.id)) return false;
+              seen.add(current.id);
+              current = s.els.find((x) => x.id === current.parent);
+            }
+          }
+          if (!s.rels.every((r) => safeId(r.id) && ids.has(r.from) && ids.has(r.to)))
+            return false;
+          return s.views.every((v) =>
+            safeId(v.id) && typeof v.name === "string" && v.nodes &&
+            !Array.isArray(v.nodes) &&
+            Object.entries(v.nodes).every(([id, p]) => ids.has(id) && point(p)) &&
+            pointsByLayer(v.pos) && pointsByLayer(v.tp) && pointsByLayer(v.labels) &&
+            (!v.lay || Object.values(v.lay).every((l) => l && pointsByLayer({ x: l.x || {} }))) &&
+            (!v.groups || (Array.isArray(v.groups) && v.groups.every((g) =>
+              safeId(g.id) && typeof g.name === "string" &&
+              Array.isArray(g.members) && g.members.every((id) => ids.has(id))))) &&
+            Object.values(v.ew || {}).every((routes) => Object.values(routes).every((route) => {
+              const vertices = Array.isArray(route) ? route : route && route.points;
+              return Array.isArray(vertices) && vertices.every(point) &&
+                (Array.isArray(route) || (point(route.from) && point(route.to)));
+            })),
+          );
+        } catch (e) {
+          return false;
+        }
+      };
+      const fromBase64Url = (value) => {
+        const binary = atob(value.replace(/-/g, "+").replace(/_/g, "/"));
+        return new TextDecoder("utf-8", { fatal: true }).decode(
+          Uint8Array.from(binary, (c) => c.charCodeAt(0)),
+        );
+      };
+      const toBase64Url = (value) => {
+        const bytes = new TextEncoder().encode(value);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += 8192)
+          binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      };
       try {
         S = JSON.parse(localStorage.getItem("c4model1"));
       } catch (e) {}
+      if (shareParam) {
+        try {
+          const shared = JSON.parse(fromBase64Url(shareParam));
+          if (!validShareWorkspace(shared)) throw new Error("Invalid or unsafe workspace data");
+          S = shared;
+          shareLoaded = true;
+        } catch (e) {
+          shareError = "This share link could not be opened: " + e.message;
+        }
+      }
       const restored = !!(
-        S &&
-        Array.isArray(S.views) &&
-        Array.isArray(S.els) &&
-        S.els.length
+        validWorkspace(S) && (S.els.length || shareLoaded)
       );
       if (!restored)
         S = {
@@ -1334,6 +1454,12 @@
         try {
           localStorage.setItem("c4model1", JSON.stringify(S));
         } catch (e) {}
+        if (shareLoaded) {
+          const url = new URL(location.href);
+          url.searchParams.delete("share");
+          history.replaceState(null, "", url);
+          shareLoaded = false;
+        }
       };
       const V = () => S.views.find((v) => v.id === S.cur),
         El = (id) => S.els.find((e) => e.id === id);
@@ -1380,18 +1506,25 @@
         DN = 0.45,
         lvl = (z) => pin || autoL;
       const sum = (a) => a.reduce((x, y) => x + y, 0);
-      const PK = () => (FOC ? Math.min(4, depth(El(FOC)) + 2) : lvl()),
-        tpos = (id) => {
+      const LV = () => (FOC ? STK[STK.length - 1].level : lvl()),
+        PK = () => LV(),
+        tposAt = (id, level) => {
           const t = V().tp || {};
-          for (let k = lvl(); k > 1; k--) if (t[k] && t[k][id]) return t[k][id];
+          for (let k = level; k > 1; k--) if (t[k] && t[k][id]) return t[k][id];
           return V().nodes[id];
         },
-        LV = () => (FOC ? Math.min(4, STK.length + 1) : lvl()),
+        tpos = (id) => tposAt(id, lvl()),
         lay = (mk) => {
           const v = V();
-          if (!mk) return (v.lay && v.lay[FOC]) || { c: {}, x: {} };
+          const key = FOC + "@l" + LV(),
+            previous = v.lay && v.lay[FOC];
+          if (!mk) return (v.lay && v.lay[key]) ||
+            (LV() === Math.min(4, depth(El(FOC)) + 2) && previous) || { c: {}, x: {} };
           v.lay = v.lay || {};
-          return (v.lay[FOC] = v.lay[FOC] || { c: {}, x: {} });
+          if (!v.lay[key])
+            v.lay[key] = LV() === Math.min(4, depth(El(FOC)) + 2) && previous
+              ? structuredClone(previous) : { c: {}, x: {} };
+          return v.lay[key];
         };
       const w2 = (e) => {
         const b = cv.getBoundingClientRect();
@@ -1400,32 +1533,72 @@
           y: (e.clientY - b.top - T.y) / T.z,
         };
       };
+      const measure = document.createElement("canvas").getContext("2d");
+      function wrappedLines(value, width, font) {
+        measure.font = font;
+        let lines = 0;
+        for (const paragraph of String(value || "").split("\n")) {
+          if (!paragraph) { lines++; continue; }
+          let line = "";
+          for (const word of paragraph.split(/\s+/)) {
+            const next = line ? line + " " + word : word;
+            if (measure.measureText(next).width <= width) { line = next; continue; }
+            if (line) { lines++; line = ""; }
+            for (const letter of word) {
+              if (line && measure.measureText(line + letter).width > width) { lines++; line = ""; }
+              line += letter;
+            }
+          }
+          if (line) lines++;
+        }
+        return lines;
+      }
+      function contentHeight(e, width, insets, level) {
+        const available = Math.max(70, width - insets[1] - insets[3] - 4);
+        let h = 12 + wrappedLines(e.name, available - 24, "600 14px Inter") * 18;
+        if (e.tech) h += 16;
+        if (e.desc) h += 4 + wrappedLines(e.desc, available, "11px Inter") * 16;
+        if ((level > 3 || e.type === "code") && e.code)
+          h += 12 + wrappedLines(e.code, available - 14, '10px "JetBrains Mono"') * 14;
+        return h;
+      }
       function layout() {
         while (FOC && !El(FOC)) popL();
         const v = V(),
           L = LV(),
-          ED = FOC ? 1 : Math.min(L - 1, 2);
+          ED = FOC
+            ? Math.max(1, Math.min(L - 1, 3) - depth(El(FOC)))
+            : Math.min(L - 1, 3);
         R = {};
         const kids = (id) =>
-          S.els.filter((e) => e.parent === id && (FOC || !v.nodes[e.id]));
+          S.els.filter((e) => e.parent === id && !v.nodes[e.id]);
         const size = (e, d) => {
-          const k = d < ED ? kids(e.id) : [];
+          const k = d < ED ? kids(e.id) : [],
+            shape = SHP[shp(e)],
+            width = Math.max(shape.s[0], e.type === "code" ? 240 : 0),
+            insets = shape.i(width, shape.s[1]),
+            own = contentHeight(e, width, insets, L),
+            hasChildren = S.els.some((c) => c.parent === e.id);
           if (!k.length) {
-            const z = SHP[shp(e)].s;
-            return { w: z[0], h: z[1] + (L > 3 && e.code ? 80 : 0) };
+            let h = Math.max(shape.s[1], own + insets[0] + insets[2] + 12 + (hasChildren ? 16 : 0));
+            let w = width;
+            if (shp(e) === "Circle") w = h = Math.max(w, h * 1.45);
+            else if (shape.c === 1) h = Math.max(h, own * 1.3);
+            return { w, h };
           }
           const subs = k.map((c) => ({ c, s: size(c, d + 1) })),
-            mp = (v.pos && v.pos[PK()]) || {};
+            mp = (v.pos && v.pos[PK()]) || {},
+            head = Math.max(HD, own + insets[0] + 12);
           let pos;
           if (subs.some((o) => mp[o.c.id])) {
-            let my = HD - G;
+            let my = head - G;
             subs.forEach((o) => {
               const p = mp[o.c.id];
               if (p) my = Math.max(my, p.y + o.s.h);
             });
             pos = subs.map((o) => {
               const p = mp[o.c.id];
-              if (p) return { x: Math.max(P, p.x), y: Math.max(HD, p.y) };
+              if (p) return { x: Math.max(P, p.x), y: Math.max(head, p.y) };
               const q = { x: P, y: my + G };
               my = q.y + o.s.h;
               return q;
@@ -1447,7 +1620,7 @@
                 r = (i / cols) | 0;
               return {
                 x: ox + sum(cw.slice(0, c)) + GX * c,
-                y: HD + sum(rh.slice(0, r)) + G * r,
+                y: head + sum(rh.slice(0, r)) + G * r,
               };
             });
           }
@@ -1546,18 +1719,92 @@
           );
         return { x: cx + dx * k, y: cy + dy * k };
       }
-      /* edge routes: straight by default; bends are user vertices joined by 90-degree legs, stored per layer */
-      const EWK = () => (FOC ? "f" + FOC : "l" + lvl()),
-        ewget = (k) => {
+      /* Edge vertices follow their endpoints. The first vertex follows the source,
+         the last follows the target, and vertices between them interpolate. */
+      const EWK = (k) => {
+          if (!FOC) return "l" + LV();
+          const [a, b] = k.split(">");
+          return R[a] && R[b] && !R[a].stub && !R[b].stub
+            ? "l" + LV() : "f" + FOC;
+        },
+        legacyEdgeValue = (maps, k) => {
+          if (!maps) return null;
+          const [a, b] = k.split(">");
+          const common = chain(a).filter((id) => chain(b).includes(id));
+          if (FOC && common.includes(FOC)) common.unshift(FOC);
+          for (const id of common) {
+            const value = maps["f" + id] && maps["f" + id][k];
+            if (value) return { value, focus: id };
+          }
+          return null;
+        },
+        clearLegacyEdge = (maps, k) => {
+          const [a, b] = k.split(">");
+          const ancestors = new Set(chain(b));
+          chain(a).filter((id) => ancestors.has(id)).forEach((id) => {
+            if (maps["f" + id]) delete maps["f" + id][k];
+          });
+        },
+        edgeCenters = (A, B) => ({
+          from: { x: A.x + A.w / 2, y: A.y + A.h / 2 },
+          to: { x: B.x + B.w / 2, y: B.y + B.h / 2 },
+        }),
+        edgeRects = (k, A, B) => {
+          const g = EG[k];
+          return [A || (g && R[g.a]), B || (g && R[g.b])];
+        },
+        ewget = (k, A, B) => {
           const v = V();
-          return v.ew && v.ew[EWK()] && v.ew[EWK()][k];
+          const layer = EWK(k),
+            map = v.ew && v.ew[layer],
+            legacy = layer[0] === "l" && !map?.[k] ? legacyEdgeValue(v.ew, k) : null,
+            route = (map && map[k]) || (legacy && legacy.value);
+          if (!route) return null;
+          [A, B] = edgeRects(k, A, B);
+          if (!A || !B) return null;
+          const now = edgeCenters(A, B);
+          if (Array.isArray(route)) {
+            if (!legacy) {
+              map[k] = { points: route, ...now };
+              return route;
+            }
+            const focus = R[legacy.focus];
+            return focus ? route.map((p) => ({ x: p.x + focus.x, y: p.y + focus.y })) : null;
+          }
+          if (!Array.isArray(route.points) || !route.from || !route.to) return null;
+          return route.points.map((p, i) => {
+            const t = route.points.length === 1 ? 0.5 : i / (route.points.length - 1);
+            return {
+              x: p.x + (now.from.x - route.from.x) * (1 - t) + (now.to.x - route.to.x) * t,
+              y: p.y + (now.from.y - route.from.y) * (1 - t) + (now.to.y - route.to.y) * t,
+            };
+          });
         },
         ewset = (k, W) => {
           const v = V();
           v.ew = v.ew || {};
-          const m = (v.ew[EWK()] = v.ew[EWK()] || {});
-          if (W && W.length) m[k] = W;
+          const layer = EWK(k),
+            m = (v.ew[layer] = v.ew[layer] || {});
+          const [A, B] = edgeRects(k);
+          if (W && W.length && A && B) m[k] = { points: W, ...edgeCenters(A, B) };
           else delete m[k];
+          if (layer[0] === "l") clearLegacyEdge(v.ew, k);
+        },
+        labelget = (k) => {
+          const maps = V().labels || {},
+            layer = EWK(k);
+          return (maps[layer] && maps[layer][k]) ||
+            (layer[0] === "l" && legacyEdgeValue(maps, k)?.value) ||
+            { x: 0, y: 0 };
+        },
+        labelset = (k, p) => {
+          const v = V();
+          v.labels = v.labels || {};
+          const layer = EWK(k),
+            m = (v.labels[layer] = v.labels[layer] || {});
+          if (Math.abs(p.x) + Math.abs(p.y) > 0.5) m[k] = p;
+          else delete m[k];
+          if (layer[0] === "l") clearLegacyEdge(v.labels, k);
         },
         anch = (Rc, o, lt) => {
           const m = 10,
@@ -1666,6 +1913,7 @@
         );
         if (hl && !tc[hl]) hl = null;
         let svg = "",
+          handles = "",
           nodes = "",
           lab = "",
           grps = "";
@@ -1687,6 +1935,16 @@
           if (FOC && (R[a].stub ? R[b].stub : !R[b].stub && (a === FOC || b === FOC))) return;
           (g[a + ">" + b] = g[a + ">" + b] || { a, b, rs: [] }).rs.push(r);
         });
+        const focused = sel && sel.t === "el" ? sel.id : null,
+          linked = new Set(focused ? [focused] : []),
+          activeKeys = new Set();
+        Object.entries(g).forEach(([key, q]) => {
+          if (focused && (q.a === focused || q.b === focused)) {
+            activeKeys.add(key);
+            linked.add(q.a);
+            linked.add(q.b);
+          }
+        });
         EG = {};
         Object.values(g).forEach((q) => {
           const A = R[q.a],
@@ -1699,20 +1957,22 @@
             sg = (hz ? dx : dy) >= 0 ? 1 : -1,
             lat = g[q.b + ">" + q.a] ? (q.a < q.b ? -16 : 16) : 0,
             key = q.a + ">" + q.b,
-            W = ewget(key),
+            W = ewget(key, A, B),
             rt = !!(W && W.length),
             s0 = hz ? { x: A.x + (sg > 0 ? A.w : 0), y: ac.y + lat } : { x: ac.x + lat, y: A.y + (sg > 0 ? A.h : 0) },
             t0 = hz ? { x: B.x + (sg > 0 ? 0 : B.w), y: bc.y + lat } : { x: bc.x + lat, y: B.y + (sg > 0 ? 0 : B.h) },
             P = rt ? orth(A, B, W, lat) : [s0, t0],
             e1 = P[P.length - 1],
             e0 = P[P.length - 2],
-            lp = midPt(P),
+            mid = midPt(P),
+            offset = labelget(key),
+            lp = { x: mid.x + offset.x, y: mid.y + offset.y },
             ang = (Math.atan2(e1.y - e0.y, e1.x - e0.x) * 180) / Math.PI,
-            on = sel && sel.t === "rel" && q.rs.some((r) => r.id === sel.id) ? " sel" : "",
+            on = sel && sel.t === "rel" && q.rs.some((r) => r.id === sel.id) ? " sel" : activeKeys.has(key) ? " conn" : "",
             d = rpath(P, 12),
             r0 = q.rs[0],
             hs = (id) => (R[id].e.tags || []).includes(hl),
-            dm = hl && !(hs(q.a) || hs(q.b)) ? " dm" : "";
+            dm = (hl && !(hs(q.a) || hs(q.b))) || (focused && !activeKeys.has(key)) ? " dm" : "";
           EG[key] = { a: q.a, b: q.b, pts: P, hz, s0, t0, routed: rt, r0: r0.id };
           svg += `<path class="eh" data-e="${r0.id}" d="${d}"/><path class="ep${on}${dm}" d="${d}"/><path class="ah${on}${dm}" d="M0 0L-11-5L-11 5z" style="transform:translate(${e1.x}px,${e1.y}px) rotate(${ang}deg) scale(var(--iz,1))"/>`;
           if (on)
@@ -1720,9 +1980,9 @@
               const u = P[k];
               if (Math.hypot(v.x - u.x, v.y - u.y) * T.z < 30) return;
               const o = Math.abs(u.y - v.y) < 0.5 ? "h" : Math.abs(u.x - v.x) < 0.5 ? "v" : "d";
-              svg += `<g class="wh ${o}" data-ek="${esc(key)}" data-ei="${k}" style="transform:translate(${(u.x + v.x) / 2}px,${(u.y + v.y) / 2}px) scale(var(--iz,1))"><circle r="5.5"/></g>`;
+              handles += `<g class="wh ${o}" data-ek="${esc(key)}" data-ei="${k}" style="transform:translate(${(u.x + v.x) / 2}px,${(u.y + v.y) / 2}px) scale(var(--iz,1))"><circle r="5.5"/></g>`;
             });
-          lab += `<div class="el${on}${dm}" data-e="${r0.id}" style="left:${lp.x}px;top:${lp.y}px">${esc(r0.label)}${r0.tech ? ` <span class="tech">[${esc(r0.tech)}]</span>` : ""}${q.rs.length > 1 ? " +" + (q.rs.length - 1) : ""}</div>`;
+          lab += `<div class="el${on}${dm}" data-e="${esc(r0.id)}" data-key="${esc(key)}" title="Drag to move label; double-click to center" style="left:${lp.x}px;top:${lp.y}px">${esc(r0.label)}${r0.tech ? ` <span class="tech">[${esc(r0.tech)}]</span>` : ""}${q.rs.length > 1 ? " +" + (q.rs.length - 1) : ""}</div>`;
         });
         Object.entries(R).forEach(([id, r]) => {
           const e = r.e,
@@ -1730,11 +1990,14 @@
             sp = r.ex || r.stub ? null : SHP[shp(e)],
             bt = (e.tags || []).length ? 6 : 0,
             ins = sp ? sp.i(r.w, r.h) : [8, 12, 8, 12],
-            icp = sp ? sp.ic(r.w, r.h) : [8, 9];
-          nodes += `<div class="n ${e.type}${r.ex ? " x" : ""}${r.stub ? " stub" : ""}${sp && sp.c === 1 ? " cc" : sp && sp.c === 2 ? " ct" : ""}${hl ? ((e.tags || []).includes(hl) ? " hl" : " dm") : ""}${sel && sel.t === "el" && sel.id === id ? " sel" : ""}" data-id="${id}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;--c:${t[1]};--tc:${hl ? tcol(hl) : "transparent"}">${shapeSVG(e, r)}<div class="in" style="padding:${ins[0]}px ${ins[1]}px ${ins[2] + bt}px ${ins[3]}px"><div class="tp">${t[0]}</div><div class="nm">${esc(e.name)}</div>${e.tech ? `<div class="tech">[${esc(e.tech)}]</div>` : ""}${e.desc ? `<div class="desc">${esc(e.desc)}</div>` : ""}${L > 3 && e.code && !r.ex ? `<div class="code">${esc(e.code)}</div>` : ""}</div><span class="ic" style="top:${icp[0]}px;right:${icp[1]}px">${ico(e)}</span><i class="h" data-from="${id}"></i></div>`;
+            icp = sp ? sp.ic(r.w, r.h) : [8, 9],
+            children = S.els.some((c) => c.parent === id),
+            dim = (hl && !(e.tags || []).includes(hl)) || (focused && !linked.has(id));
+          nodes += `<div class="n ${e.type}${r.ex ? " x" : ""}${r.stub ? " stub" : ""}${sp && sp.c === 1 ? " cc" : sp && sp.c === 2 ? " ct" : ""}${dim ? " dm" : ""}${hl && (e.tags || []).includes(hl) ? " hl" : ""}${focused && linked.has(id) && id !== focused ? " conn" : ""}${focused === id ? " sel" : ""}" data-id="${esc(id)}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;--c:${t[1]};--tc:${hl ? tcol(hl) : "transparent"}">${shapeSVG(e, r)}<div class="in" style="padding:${ins[0]}px ${ins[1]}px ${ins[2] + bt + (children && !r.stub ? 15 : 0)}px ${ins[3]}px"><div class="tp">${t[0]}</div><div class="nm">${esc(e.name)}</div>${e.tech ? `<div class="tech">[${esc(e.tech)}]</div>` : ""}${e.desc ? `<div class="desc">${esc(e.desc)}</div>` : ""}${(L > 3 || e.type === "code") && e.code && !r.ex ? `<div class="code">${esc(e.code)}</div>` : ""}</div><span class="ic" style="top:${icp[0]}px;right:${icp[1]}px">${ico(e)}</span>${children && !r.stub ? `<button class="zoom" data-dive="${esc(id)}" title="Open ${esc(e.name)}" aria-label="Open ${esc(e.name)}"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L21 21M10 7v6M7 10h6"/></svg></button>` : ""}<i class="h" data-from="${esc(id)}"></i></div>`;
         });
         ES.innerHTML = svg;
         ND.innerHTML = grps + nodes + lab;
+        HS.innerHTML = handles;
         if (FOC)
           STK[STK.length - 1].bc.innerHTML = [V().name, ...STK.map((l) => (El(l.foc) || {}).name)]
             .map((n, i, a) => i === a.length - 1 ? `<b>${esc(n)}</b>` : `<a data-k="${i}">${esc(n)}</a>`)
@@ -1753,6 +2016,7 @@
           const level = +b.dataset.l;
           b.classList.toggle("on", level === (pin || autoL));
         });
+        $("#reset-layer").disabled = LV() === 1;
       }
       function applyT() {
         w.style.transform = `translate(${T.x}px,${T.y}px) scale(${T.z})`;
@@ -1863,11 +2127,14 @@
         }
       }
 /* double-click opens the element in a new stacked layer; the layer below is left untouched under a backdrop */
-      const syncL = () => $("#st").classList.toggle("lo", STK.length > 0);
+      const syncL = () => {
+        $("#st").classList.toggle("lo", STK.length > 0);
+        $("#reset-layer").hidden = STK.length > 0;
+      };
       function popL() {
         const l = STK.pop();
         l.bd.remove();
-        ({ cv, w, ES, ND, TS, TL, T, R, sel, FOC } = l.saved);
+        ({ cv, w, ES, ND, HS, TS, TL, T, R, sel, FOC } = l.saved);
         syncL();
       }
       function closeTo(n) {
@@ -1880,19 +2147,21 @@
       function dive(id) {
         if (!El(id)) return;
         const bd = document.createElement("div"),
-          host = STK.length ? STK[STK.length - 1].dlg : cv;
+          host = STK.length ? STK[STK.length - 1].dlg : cv,
+          level = Math.min(4, Math.max(LV(), depth(El(id)) + 2));
         bd.className = "bd";
         bd.dataset.k = STK.length + 1;
         bd.innerHTML =
-          '<div class="dlg"><div class="dh"><div class="bc"></div><button class="cx" title="Close layer (Esc)">×</button></div><div class="lc"><div class="lw"><svg class="les"></svg><div class="lnd"></div><svg class="lts"><line class="ltl"/></svg></div></div></div>';
+          `<div class="dlg"><div class="dh"><div class="bc"></div><span class="ll">L${level}</span><button class="bt lr" title="Copy positions from the previous layer into this opened layer">Reset position of this layer</button><button class="cx" title="Close layer (Esc)">×</button></div><div class="lc"><div class="lw"><svg class="les"></svg><div class="lnd"></div><svg class="lhs"></svg><svg class="lts"><line class="ltl"/></svg></div></div></div>`;
         host.appendChild(bd);
         const dlg = bd.firstChild;
-        STK.push({ bd, dlg, foc: id, bc: dlg.querySelector(".bc"), saved: { cv, w, ES, ND, TS, TL, T, R, sel, FOC } });
+        STK.push({ bd, dlg, foc: id, level, bc: dlg.querySelector(".bc"), saved: { cv, w, ES, ND, HS, TS, TL, T, R, sel, FOC } });
         cv = dlg.querySelector(".lc");
         w = dlg.querySelector(".lw");
         ES = w.children[0];
         ND = w.children[1];
-        TS = w.children[2];
+        HS = w.children[2];
+        TS = w.children[3];
         TL = TS.firstChild;
         FOC = id;
         sel = null;
@@ -1906,7 +2175,31 @@
       function surface() {
         STK.length ? closeTo(STK.length - 1) : fit();
       }
+      function resetLayerPositions() {
+        const v = V(), level = LV();
+        if (level <= 1) return;
+        v.pos = v.pos || {};
+        const previous = v.pos[level - 1] || {};
+        if (FOC) {
+          const current = v.pos[level] || {};
+          Object.entries(R).forEach(([id, r]) => {
+            if (id === FOC || r.stub) return;
+            if (previous[id]) current[id] = { ...previous[id] };
+            else delete current[id];
+          });
+          v.pos[level] = current;
+        } else {
+          v.tp = v.tp || {};
+          v.tp[level] = Object.fromEntries(
+            Object.keys(v.nodes).filter((id) => El(id)).map((id) => [id, { ...tposAt(id, level - 1) }]),
+          );
+          v.pos[level] = structuredClone(previous);
+        }
+        render();
+        save();
+      }
       $("#cv").addEventListener("click", (e) => {
+        if (e.target.closest(".lr")) { resetLayerPositions(); return; }
         const a = e.target.closest(".dh [data-k], .cx");
         if (a) closeTo(a.classList.contains("cx") ? STK.length - 1 : +a.dataset.k);
       });
@@ -1923,7 +2216,7 @@
         const v = V();
         let id;
         if (FOC) {
-          if (!/^(new:(container|component)|shape:)/.test(d)) return;
+          if (!/^(new:(container|component|code)|shape:)/.test(d)) return;
           par = par || FOC;
         }
         if (d.startsWith("shape:")) {
@@ -1944,7 +2237,7 @@
           if (!FOC) v.nodes[id] = { x: p.x - W / 2, y: p.y - H / 2 };
         } else if (d.startsWith("new:")) {
           const t = d.slice(4),
-            nest = par && (t === "container" || t === "component");
+            nest = par && (t === "container" || t === "component" || t === "code");
           S.els.push({
             id: (id = nid(t)),
             type: t,
@@ -2011,7 +2304,7 @@
         const r = $("#rp");
         if (!sel) {
           r.innerHTML =
-            '<h3>Inspector</h3><p class="mu">Select an element or a relationship to edit it. Drag the dot on a selected element to connect it. Scroll to zoom through the C4 levels, and double-click an element to zoom into it.</p>';
+            '<h3>Inspector</h3><p class="mu">Select an element or relationship to edit it. Drag the dot on a selected element to connect it. Use L1–L4 to change detail, and double-click an element or use its magnifying glass to open its children. Drag relationship labels and edge handles to position them.</p>';
           return;
         }
         if (sel.t === "rel") {
@@ -2054,7 +2347,7 @@
           )
           .join(
             "",
-          )}</select></label><label>Tags (comma separated)<input data-f="tags" value="${esc((e.tags || []).join(", "))}" placeholder="e.g. pii, legacy"></label><div class="tags" id="tgp">${chips(e.tags)}</div>${fld("Description", "desc", e.desc, 1)}${fld("Code notes, shown at L4", "code", e.code, 1, "mono")}<label>Parent<select data-f="parent"><option value="">None (top level)</option>${S.els
+          )}</select></label><label>Tags (comma separated)<input data-f="tags" value="${esc((e.tags || []).join(", "))}" placeholder="e.g. pii, legacy"></label><div class="tags" id="tgp">${chips(e.tags)}</div>${fld("Description", "desc", e.desc, 1)}${fld(e.type === "code" ? "Code, shown at L4" : "Code notes, shown at L4", "code", e.code, 1, "mono")}<label>Parent<select data-f="parent"><option value="">None (top level)</option>${S.els
           .filter((c) => !bad.includes(c.id))
           .map(
             (c) =>
@@ -2401,6 +2694,12 @@
           return;
         }
         if (e.target.closest(".dh")) return;
+        const zoom = e.target.closest("[data-dive]");
+        if (zoom) {
+          e.preventDefault();
+          dive(zoom.dataset.dive);
+          return;
+        }
         const eh = e.target.closest("[data-ek]");
         if (eh) {
           const key = eh.dataset.ek,
@@ -2482,6 +2781,20 @@
           const id = ed.dataset.e,
             now = Date.now(),
             k = Object.keys(EG).find((q) => EG[q].r0 === id);
+          if (ed.classList.contains("el") && k) {
+            const dbl = lastDown.id === "label" + k && now - lastDown.t < 350;
+            lastDown = { id: "label" + k, t: now };
+            if (dbl) {
+              labelset(k, { x: 0, y: 0 });
+              render();
+              save();
+              return;
+            }
+            const offset = labelget(k);
+            pick({ t: "rel", id });
+            drag = { k: "label", key: k, sx: e.clientX, sy: e.clientY, ox: offset.x, oy: offset.y };
+            return;
+          }
           if (t.classList.contains("eh") && k && ewget(k) && lastDown.id === "ed" + id && now - lastDown.t < 350) {
             ewset(k, null);
             lastDown = {};
@@ -2563,6 +2876,12 @@
           const o = lay(1).x;
           o[drag.id] = { x: drag.ox + (e.clientX - drag.sx) / T.z, y: drag.oy + (e.clientY - drag.sy) / T.z };
           render();
+        } else if (drag.k === "label") {
+          labelset(drag.key, {
+            x: drag.ox + (e.clientX - drag.sx) / T.z,
+            y: drag.oy + (e.clientY - drag.sy) / T.z,
+          });
+          render();
         } else if (drag.k === "move") {
           const v = V(),
             k = lvl(),
@@ -2635,6 +2954,7 @@
       document
         .querySelectorAll(".lv")
         .forEach((b) => (b.onclick = () => selectLevel(+b.dataset.l)));
+      $("#reset-layer").onclick = resetLayerPositions;
       $("#zi").onclick = () => go(T.z * 1.35, selC());
       $("#zo").onclick = () => go(T.z / 1.35, selC());
       $("#zf").onclick = fit;
@@ -2688,11 +3008,12 @@
             external: "softwareSystem",
             container: "container",
             component: "component",
+            code: "code",
           },
           o = ['workspace "C4Model" {', "    model {"];
         const el = (e, ind) => {
           const a = [q(e.name), q(e.desc)],
-            cn = e.type === "container" || e.type === "component",
+            cn = e.type === "container" || e.type === "component" || e.type === "code",
             kids = S.els.filter((c) => c.parent === e.id),
             pr = [];
           if (cn) a.push(q(e.tech));
@@ -2757,6 +3078,27 @@
                 ]);
             }),
           );
+          const part = (s) => encodeURIComponent(s).replace(/\./g, "%2E");
+          Object.entries(v.tp || {}).forEach(([L, m]) =>
+            Object.entries(m).forEach(([id, p]) => {
+              if (El(id)) pr.push([`top.${L}.${part(id)}`, `${p.x},${p.y}`]);
+            }),
+          );
+          Object.entries(v.ew || {}).forEach(([layer, m]) =>
+            Object.entries(m).forEach(([key, route]) =>
+              pr.push([`route.${part(layer)}.${part(key)}`, JSON.stringify(route)]),
+            ),
+          );
+          Object.entries(v.labels || {}).forEach(([layer, m]) =>
+            Object.entries(m).forEach(([key, p]) =>
+              pr.push([`label.${part(layer)}.${part(key)}`, `${p.x},${p.y}`]),
+            ),
+          );
+          Object.entries(v.lay || {}).forEach(([focus, layer]) =>
+            Object.entries(layer.x || {}).forEach(([id, p]) =>
+              pr.push([`stub.${part(focus)}.${part(id)}`, `${p.x},${p.y}`]),
+            ),
+          );
           pr.sort((a, b) => (a[0] < b[0] ? -1 : 1));
           if (pr.length) {
             o.push("            properties {");
@@ -2774,6 +3116,7 @@
             softwareSystem: "system",
             container: "container",
             component: "component",
+            code: "code",
           },
           els = [],
           rels = [],
@@ -2890,7 +3233,7 @@
           if (b[1] === "=" && TY2[b[2]]) {
             const v = ss(b.slice(3)),
               ty = TY2[b[2]],
-              cn = ty === "container" || ty === "component",
+              cn = ty === "container" || ty === "component" || ty === "code",
               e = {
                 id: b[0],
                 type: ty,
@@ -2968,7 +3311,11 @@
           });
         const VS = views.map((v) => {
           const nodes = {},
-            pos = {};
+            pos = {},
+            tp = {},
+            ew = {},
+            labels = {},
+            lay = {};
           v.inc.forEach((id, j) => {
             if (!byId[id])
               throw new Error('View "' + v.name + '": unknown element ' + id);
@@ -2984,12 +3331,39 @@
               xy = val.split(",").map(Number);
             if (m && xy.length === 2 && xy.every(isFinite))
               (pos[m[1]] = pos[m[1]] || {})[m[2]] = { x: xy[0], y: xy[1] };
+            const ex = /^(top|route|label|stub)\.([^.]+)\.(.+)$/.exec(k);
+            if (!ex) return;
+            const kind = ex[1],
+              layer = decodeURIComponent(ex[2]),
+              id = decodeURIComponent(ex[3]),
+              point = xy.length === 2 && xy.every(isFinite) ? { x: xy[0], y: xy[1] } : null;
+            if (kind === "route") {
+              let route;
+              try { route = JSON.parse(val); } catch (e) { throw new Error('View "' + v.name + '": invalid route ' + id); }
+              const valid = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.y);
+              if (!(Array.isArray(route) && route.every(valid)) &&
+                  !(route && Array.isArray(route.points) && route.points.every(valid) && valid(route.from) && valid(route.to)))
+                throw new Error('View "' + v.name + '": invalid route ' + id);
+              (ew[layer] = ew[layer] || {})[id] = route;
+            } else if (!point) {
+              throw new Error('View "' + v.name + '": invalid position ' + k);
+            } else if (kind === "top") {
+              (tp[layer] = tp[layer] || {})[id] = point;
+            } else if (kind === "label") {
+              (labels[layer] = labels[layer] || {})[id] = point;
+            } else {
+              (lay[layer] = lay[layer] || { c: {}, x: {} }).x[id] = point;
+            }
           });
           return {
             id: v.id,
             name: v.name,
             nodes,
             pos,
+            tp,
+            ew,
+            labels,
+            lay,
             groups: (v.groups || [])
               .map((g) => ({
                 id: g.id,
@@ -3006,10 +3380,27 @@
         m.textContent = t;
         m.style.color = bad ? "#e5484d" : "";
       };
+      $("#share").onclick = async () => {
+        if (!validShareWorkspace(S)) {
+          alert("This workspace cannot be shared because it contains invalid model data or unsupported IDs.");
+          return;
+        }
+        const url = new URL(location.href);
+        url.searchParams.set("share", toBase64Url(JSON.stringify(S)));
+        const note = url.href.length > 8000 ? " This link is long and may be rejected by some apps; download the DSL for larger workspaces." : "";
+        try {
+          await navigator.clipboard.writeText(url.href);
+          const button = $("#share");
+          button.textContent = "Copied!";
+          setTimeout(() => { button.textContent = "Share"; }, 1800);
+          if (note) alert("Share link copied." + note);
+        } catch (e) {
+          prompt("Copy this share link." + note, url.href);
+        }
+      };
       $("#cb").onclick = () => {
-        save();
         $("#ct").value = toDSL();
-        msg("Current workspace saved.");
+        msg("Workspace ready to edit or export.");
         $("#cd").hidden = false;
         $("#ct").focus();
       };
@@ -3139,6 +3530,7 @@
       }
       (restored ? Promise.resolve(null) : seedFromFile()).then((bad) => {
         boot();
+        if (shareError) alert(shareError);
         if (bad) {
           $("#ct").value = bad.txt;
           $("#cd").hidden = false;
