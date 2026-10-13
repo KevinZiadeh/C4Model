@@ -921,7 +921,7 @@
       <button class="ib" id="zo">−</button><span id="zp">100%</span
       ><button class="ib" id="zi">+</button>
       <button class="ib" id="zf" title="Fit to view">Fit</button
-      ><button class="ib" id="reset-layer" title="Copy positions from the previous layer into this layer">Reset position of this layer</button
+      ><button class="ib" id="reset-layer" title="Copy node positions and edge bends from the previous layer">Reset position of this layer</button
       ><button class="ib" id="tgb" title="Show or hide the tag legend">
         Tags</button
       ><button class="ib" id="cb" title="Export or import as code">Code</button
@@ -2152,7 +2152,7 @@
         bd.className = "bd";
         bd.dataset.k = STK.length + 1;
         bd.innerHTML =
-          `<div class="dlg"><div class="dh"><div class="bc"></div><span class="ll">L${level}</span><button class="bt lr" title="Copy positions from the previous layer into this opened layer">Reset position of this layer</button><button class="cx" title="Close layer (Esc)">×</button></div><div class="lc"><div class="lw"><svg class="les"></svg><div class="lnd"></div><svg class="lhs"></svg><svg class="lts"><line class="ltl"/></svg></div></div></div>`;
+          `<div class="dlg"><div class="dh"><div class="bc"></div><span class="ll">L${level}</span><button class="bt lr" title="Copy node positions and edge bends from the previous layer">Reset position of this layer</button><button class="cx" title="Close layer (Esc)">×</button></div><div class="lc"><div class="lw"><svg class="les"></svg><div class="lnd"></div><svg class="lhs"></svg><svg class="lts"><line class="ltl"/></svg></div></div></div>`;
         host.appendChild(bd);
         const dlg = bd.firstChild;
         STK.push({ bd, dlg, foc: id, level, bc: dlg.querySelector(".bc"), saved: { cv, w, ES, ND, HS, TS, TL, T, R, sel, FOC } });
@@ -2180,6 +2180,9 @@
         if (level <= 1) return;
         v.pos = v.pos || {};
         const previous = v.pos[level - 1] || {};
+        v.ew = v.ew || {};
+        const routeLayer = "l" + level,
+          previousRoutes = v.ew["l" + (level - 1)] || {};
         if (FOC) {
           const current = v.pos[level] || {};
           Object.entries(R).forEach(([id, r]) => {
@@ -2188,12 +2191,20 @@
             else delete current[id];
           });
           v.pos[level] = current;
+          const currentRoutes = v.ew[routeLayer] || {};
+          Object.keys(EG).forEach((key) => {
+            if (EWK(key) !== routeLayer) return;
+            if (previousRoutes[key]) currentRoutes[key] = structuredClone(previousRoutes[key]);
+            else delete currentRoutes[key];
+          });
+          v.ew[routeLayer] = currentRoutes;
         } else {
           v.tp = v.tp || {};
           v.tp[level] = Object.fromEntries(
             Object.keys(v.nodes).filter((id) => El(id)).map((id) => [id, { ...tposAt(id, level - 1) }]),
           );
           v.pos[level] = structuredClone(previous);
+          v.ew[routeLayer] = structuredClone(previousRoutes);
         }
         render();
         save();
