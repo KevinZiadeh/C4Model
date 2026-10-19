@@ -895,6 +895,8 @@
       #reset-layer:disabled{opacity:.45;cursor:not-allowed}
       @media (max-width:700px){.dlg{left:14px;right:14px;bottom:14px}}
       @media (prefers-reduced-motion:reduce){.bd,.dlg{animation:none}.flow{display:none}}
+      .mb .row { flex-wrap: wrap; }
+      .mb .bt { flex: 1 1 auto; }
     </style>
   </head>
   <body>
@@ -969,7 +971,8 @@
         <h3>Model as code</h3>
         <p class="mu">
           Structurizr-style text. Commit it to git, edit it, then apply it back
-          here.
+          here. <b>Apply</b> replaces the whole workspace; <b>Import</b> adds a
+          file's diagrams as new tabs and merges elements that already exist.
         </p>
         <textarea
           id="ct"
@@ -977,6 +980,10 @@
           aria-label="Model as code"
         ></textarea>
         <div id="cm" class="mu"></div>
+        <div class="row">
+          <button class="bt" id="cim">Import file(s) as new tab(s)…</button>
+          <button class="bt" id="cit">Import editor text as new tab(s)</button>
+        </div>
         <div class="row">
           <button class="bt" id="cdl">Download .dsl</button
           ><button class="bt" id="cco">Copy</button
@@ -990,6 +997,7 @@
           ><button class="bt" id="ccl">Close</button>
         </div>
         <input type="file" id="cf" accept=".dsl,.txt,text/plain" hidden />
+        <input type="file" id="cif" accept=".dsl,.txt,text/plain" multiple hidden />
       </div>
     </div>
     <!-- LZMA-JS 2.3.2 (https://github.com/nmrugg/LZMA-JS)
@@ -2266,6 +2274,49 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         inspector();
         model();
       }
+      /* When an existing model element is added to a diagram, reuse the layout it already
+         has in another diagram: top-level position (relative to elements the two diagrams
+         share), per-level positions, child positions inside it, edge bends and label offsets. */
+      function inheritLayout(id) {
+        const v = V(),
+          inView = (x) => chain(x).some((a) => v.nodes[a]),
+          anchors = (o) => Object.keys(v.nodes).filter((k) => k !== id && o.nodes[k]),
+          cands = S.views.filter((o) => o !== v && o.nodes[id]);
+        if (!cands.length) return;
+        const src = cands.map((o) => [o, anchors(o).length]).sort((a, b) => b[1] - a[1])[0][0],
+          anc = anchors(src)[0],
+          sp = src.nodes[id],
+          dx = anc ? v.nodes[anc].x - src.nodes[anc].x : v.nodes[id].x - sp.x,
+          dy = anc ? v.nodes[anc].y - src.nodes[anc].y : v.nodes[id].y - sp.y,
+          shift = (p) => ({ x: p.x + dx, y: p.y + dy }),
+          kids = dsc(id);
+        v.nodes[id] = shift(sp);
+        Object.entries(src.tp || {}).forEach(([L, m]) => {
+          if (m[id]) ((v.tp = v.tp || {})[L] = v.tp[L] || {})[id] = shift(m[id]);
+        });
+        Object.entries(src.pos || {}).forEach(([L, m]) =>
+          kids.forEach((c) => {
+            if (!m[c]) return;
+            const t = ((v.pos = v.pos || {})[L] = v.pos[L] || {});
+            if (!t[c]) t[c] = { ...m[c] };
+          }),
+        );
+        ["ew", "labels"].forEach((key) =>
+          Object.entries(src[key] || {}).forEach(([layer, m]) => {
+            if (layer[0] === "f" && !inView(layer.slice(1))) return;
+            Object.entries(m).forEach(([k, val]) => {
+              const [a, b] = k.split(">");
+              if (!inView(a) || !inView(b)) return;
+              const t = ((v[key] = v[key] || {})[layer] = v[key][layer] || {});
+              if (!t[k]) t[k] = Array.isArray(val) ? val.map(shift) : structuredClone(val);
+            });
+          }),
+        );
+        Object.entries(src.lay || {}).forEach(([k, l]) => {
+          v.lay = v.lay || {};
+          if (kids.concat(id).includes(k.replace(/@l\d+$/, "")) && !v.lay[k]) v.lay[k] = structuredClone(l);
+        });
+      }
       function add(d, p, par) {
         const v = V();
         let id;
@@ -2305,7 +2356,10 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         } else {
           id = d.slice(3);
           if (!El(id)) return;
-          if (!R[id]) v.nodes[id] = { x: p.x - W / 2, y: p.y - H / 2 };
+          if (!R[id]) {
+            v.nodes[id] = { x: p.x - W / 2, y: p.y - H / 2 };
+            inheritLayout(id);
+          }
         }
         pick({ t: "el", id });
         save();
@@ -3541,6 +3595,196 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           );
         } catch (e) {
           msg(e.message, 1);
+        }
+      };
+      /* ---------- import / merge another DSL without overwriting the workspace ---------- */
+      const norm = (s) => String(s == null ? "" : s).trim().replace(/\s+/g, " ").toLowerCase(),
+        tcls = (t) => (t === "external" ? "system" : t);
+
+      /* Rewrite every id-bearing structure of an imported view (nodes, per-layer
+         positions, edge routes, label offsets, stub positions, groups) through `map`. */
+      function remapView(v, map) {
+        const ids = (o) =>
+            Object.fromEntries(
+              Object.entries(o || {}).filter(([id]) => map[id]).map(([id, p]) => [map[id], p]),
+            ),
+          byLayer = (o) =>
+            Object.fromEntries(Object.entries(o || {}).map(([L, m]) => [L, ids(m)])),
+          edgeKey = (k) => {
+            const [a, b] = k.split(">");
+            return map[a] && map[b] ? map[a] + ">" + map[b] : null;
+          },
+          layerKey = (L) => (L[0] !== "f" ? L : map[L.slice(1)] ? "f" + map[L.slice(1)] : null),
+          keyed = (o) => {
+            const out = {};
+            Object.entries(o || {}).forEach(([L, m]) => {
+              const nl = layerKey(L);
+              if (!nl) return;
+              const r = (out[nl] = out[nl] || {});
+              Object.entries(m).forEach(([k, val]) => {
+                const nk = edgeKey(k);
+                if (nk) r[nk] = val;
+              });
+            });
+            return out;
+          },
+          stubs = {};
+        Object.entries(v.lay || {}).forEach(([k, l]) => {
+          const m = /^(.*?)(@l\d+)?$/.exec(k),
+            id = map[m[1]];
+          if (id) stubs[id + (m[2] || "")] = { c: l.c || {}, x: ids(l.x) };
+        });
+        let id = v.id,
+          name = v.name,
+          i = 2;
+        if (!/^[\w-]+$/.test(id) || S.views.some((x) => x.id === id)) {
+          do id = uid();
+          while (S.views.some((x) => x.id === id));
+        }
+        while (S.views.some((x) => x.name === name)) name = v.name + " (" + i++ + ")";
+        return {
+          id,
+          name,
+          nodes: ids(v.nodes),
+          pos: byLayer(v.pos),
+          tp: byLayer(v.tp),
+          ew: keyed(v.ew),
+          labels: keyed(v.labels),
+          lay: stubs,
+          groups: (v.groups || [])
+            .map((g) => ({
+              id: g.id,
+              name: g.name,
+              members: [...new Set(g.members.map((m) => map[m]).filter(Boolean))],
+            }))
+            .filter((g) => g.members.length),
+        };
+      }
+
+      /* Elements are "the same" when name + type + (remapped) parent match; ids are
+         only a tie-breaker because auto-generated ids (container1...) collide across
+         unrelated workspaces. Existing values always win; blanks are filled in. */
+      function mergeWorkspace(n, st) {
+        const before = S.els.slice(),
+          used = new Set(),
+          map = {},
+          fresh = (base) => {
+            let id = base,
+              i = 2;
+            while (El(id)) id = base + "_" + i++;
+            return id;
+          };
+        n.els.forEach((e) => {
+          const parent = (e.parent && map[e.parent]) || null,
+            cands = before.filter(
+              (x) =>
+                !used.has(x.id) &&
+                (x.parent || null) === parent &&
+                norm(x.name) === norm(e.name) &&
+                tcls(x.type) === tcls(e.type),
+            ),
+            hit = cands.find((x) => x.id === e.id) || cands[0];
+          if (hit) {
+            used.add(hit.id);
+            map[e.id] = hit.id;
+            ["tech", "desc", "code", "icon", "shape"].forEach((k) => {
+              if (!hit[k] && e[k]) hit[k] = e[k];
+              else if (k !== "icon" && k !== "shape" && hit[k] && e[k] && norm(hit[k]) !== norm(e[k])) st.kept++;
+            });
+            hit.tags = [...new Set([...(hit.tags || []), ...(e.tags || [])])];
+            st.merged++;
+          } else {
+            const id = El(e.id) ? fresh(e.id) : e.id;
+            if (id !== e.id) st.renamed++;
+            map[e.id] = id;
+            S.els.push({ ...e, id, parent, tags: [...(e.tags || [])] });
+            st.added++;
+          }
+        });
+        const rk = (f, t, l) => f + ">" + t + "|" + norm(l),
+          seen = new Map(S.rels.map((r) => [rk(r.from, r.to, r.label), r]));
+        n.rels.forEach((r) => {
+          const f = map[r.from],
+            t = map[r.to];
+          if (!f || !t) return;
+          const k = rk(f, t, r.label),
+            ex = seen.get(k);
+          if (ex) {
+            if (!ex.tech && r.tech) ex.tech = r.tech;
+            st.relDup++;
+            return;
+          }
+          let id;
+          do id = uid();
+          while (S.rels.some((q) => q.id === id));
+          const nr = { id, from: f, to: t, label: r.label, tech: r.tech };
+          S.rels.push(nr);
+          seen.set(k, nr);
+          st.rels++;
+        });
+        n.views.forEach((v) => {
+          const nv = remapView(v, map);
+          S.views.push(nv);
+          st.views.push(nv);
+        });
+      }
+
+      function importDSL(items) {
+        /* parse everything first so a syntax error in any file changes nothing */
+        const parsed = items.map(({ name, text }) => {
+          try {
+            return parseDSL(text);
+          } catch (e) {
+            throw new Error(name + ": " + e.message);
+          }
+        });
+        closeTo(0);
+        const old = V();
+        if (old) old.cam = { ...T };
+        const backup = structuredClone(S),
+          st = { added: 0, merged: 0, renamed: 0, rels: 0, relDup: 0, kept: 0, views: [] },
+          blank = !S.els.length && S.views.every((v) => !Object.keys(v.nodes).length);
+        try {
+          if (blank) S.views = [];
+          parsed.forEach((n) => mergeWorkspace(n, st));
+          if (!st.views.length) throw new Error("Nothing to import");
+        } catch (e) {
+          S = backup;
+          throw e;
+        }
+        S.cur = st.views[0].id;
+        sel = null;
+        boot();
+        save();
+        $("#ct").value = toDSL();
+        const pl = (k, a, b) => k + " " + (k === 1 ? a : b || a + "s"),
+          p = [
+            "Imported " + pl(st.views.length, "tab"),
+            pl(st.added, "new element"),
+            st.merged + " merged with existing",
+            pl(st.rels, "relationship") + " added",
+          ];
+        if (st.relDup) p.push(pl(st.relDup, "duplicate relationship") + " skipped");
+        if (st.renamed) p.push(pl(st.renamed, "id") + " renamed to avoid clashes");
+        if (st.kept) p.push(pl(st.kept, "differing text field") + " kept as in the current workspace");
+        return p.join(" · ") + ".";
+      }
+      $("#cim").onclick = () => $("#cif").click();
+      $("#cif").onchange = async (e) => {
+        const files = [...e.target.files];
+        e.target.value = "";
+        if (!files.length) return;
+        try {
+          msg(importDSL(await Promise.all(files.map(async (f) => ({ name: f.name, text: await f.text() })))));
+        } catch (err) {
+          msg(err.message, 1);
+        }
+      };
+      $("#cit").onclick = () => {
+        try {
+          msg(importDSL([{ name: "Editor text", text: $("#ct").value }]));
+        } catch (err) {
+          msg(err.message, 1);
         }
       };
       $("#tgb").onclick = () => $("#lgd").classList.toggle("off");
