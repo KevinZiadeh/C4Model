@@ -184,6 +184,18 @@
       #w.an {
         transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
       }
+      .alt-select #cv,
+      .alt-select #cv :is(.lc, .n, .n *, .el, .eh, .wh, .port-grip) {
+        cursor: crosshair !important;
+      }
+      .marquee {
+        position: absolute;
+        box-sizing: border-box;
+        border: 1px solid var(--ac);
+        background: color-mix(in srgb, var(--ac) 13%, transparent);
+        pointer-events: none;
+        z-index: 7;
+      }
       #es,
       #sg,
       #ts {
@@ -602,6 +614,9 @@
       }
       .sel > .h {
         display: block;
+      }
+      .multi-select .sel > .h {
+        display: none;
       }
       .el {
         position: absolute;
@@ -1411,6 +1426,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       let S,
         T = { x: 0, y: 0, z: 1 },
         sel = null,
+        selectedNodes = new Set(),
         drag = null,
         R = {},
         lastL = 0,
@@ -2172,6 +2188,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       }
       function render() {
         layout();
+        w.classList.toggle("multi-select", selectedNodes.size > 1);
         const L = ((lastL = lvl(T.z)), LV()),
           g = {},
           tc = {};
@@ -2276,7 +2293,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             icp = sp ? sp.ic(r.w, r.h) : [8, 9],
             children = S.els.some((c) => c.parent === id),
             dim = (hl && !(e.tags || []).includes(hl)) || (focused && !linked.has(id));
-          nodes += `<div class="n ${e.type}${r.ex ? " x" : ""}${r.stub ? " stub" : ""}${sp && sp.c === 1 ? " cc" : sp && sp.c === 2 ? " ct" : ""}${dim ? " dm" : ""}${hl && (e.tags || []).includes(hl) ? " hl" : ""}${focused && linked.has(id) && id !== focused ? " conn" : ""}${focused === id ? " sel" : ""}" data-id="${esc(id)}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;--c:${t[1]};--tc:${hl ? tcol(hl) : "transparent"}">${shapeSVG(e, r)}<div class="in" style="padding:${ins[0]}px ${ins[1]}px ${ins[2] + bt + (children && !r.stub ? 15 : 0)}px ${ins[3]}px"><div class="tp">${t[0]}</div><div class="nm">${esc(e.name)}</div>${e.tech ? `<div class="tech">[${esc(e.tech)}]</div>` : ""}${e.desc ? `<div class="desc">${esc(e.desc)}</div>` : ""}${(L > 3 || e.type === "code") && e.code && !r.ex ? `<div class="code">${esc(e.code)}</div>` : ""}</div><span class="ic" style="top:${icp[0]}px;right:${icp[1]}px">${ico(e)}</span>${children && !r.stub ? `<button class="zoom" data-dive="${esc(id)}" title="Open ${esc(e.name)}" aria-label="Open ${esc(e.name)}"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L21 21M10 7v6M7 10h6"/></svg></button>` : ""}<i class="h" data-from="${esc(id)}"></i></div>`;
+          nodes += `<div class="n ${e.type}${r.ex ? " x" : ""}${r.stub ? " stub" : ""}${sp && sp.c === 1 ? " cc" : sp && sp.c === 2 ? " ct" : ""}${dim ? " dm" : ""}${hl && (e.tags || []).includes(hl) ? " hl" : ""}${focused && linked.has(id) && id !== focused ? " conn" : ""}${selectedNodes.has(id) ? " sel" : ""}" data-id="${esc(id)}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;--c:${t[1]};--tc:${hl ? tcol(hl) : "transparent"}">${shapeSVG(e, r)}<div class="in" style="padding:${ins[0]}px ${ins[1]}px ${ins[2] + bt + (children && !r.stub ? 15 : 0)}px ${ins[3]}px"><div class="tp">${t[0]}</div><div class="nm">${esc(e.name)}</div>${e.tech ? `<div class="tech">[${esc(e.tech)}]</div>` : ""}${e.desc ? `<div class="desc">${esc(e.desc)}</div>` : ""}${(L > 3 || e.type === "code") && e.code && !r.ex ? `<div class="code">${esc(e.code)}</div>` : ""}</div><span class="ic" style="top:${icp[0]}px;right:${icp[1]}px">${ico(e)}</span>${children && !r.stub ? `<button class="zoom" data-dive="${esc(id)}" title="Open ${esc(e.name)}" aria-label="Open ${esc(e.name)}"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L21 21M10 7v6M7 10h6"/></svg></button>` : ""}<i class="h" data-from="${esc(id)}"></i></div>`;
         });
         ES.innerHTML = svg + flows;
         if (hl) ES.style.setProperty("--flow-color", tcol(hl));
@@ -2420,7 +2437,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         const l = STK.pop();
         clearSnapGuides();
         l.bd.remove();
-        ({ cv, w, ES, ND, HS, SG, TS, TL, T, R, sel, FOC } = l.saved);
+        ({ cv, w, ES, ND, HS, SG, TS, TL, T, R, sel, selectedNodes, FOC } = l.saved);
         syncL();
       }
       function closeTo(n) {
@@ -2442,7 +2459,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         host.appendChild(bd);
         const dlg = bd.firstChild;
         clearSnapGuides();
-        STK.push({ bd, dlg, foc: id, level, bc: dlg.querySelector(".bc"), saved: { cv, w, ES, ND, HS, SG, TS, TL, T, R, sel, FOC } });
+        STK.push({ bd, dlg, foc: id, level, bc: dlg.querySelector(".bc"), saved: { cv, w, ES, ND, HS, SG, TS, TL, T, R, sel, selectedNodes, FOC } });
         cv = dlg.querySelector(".lc");
         w = dlg.querySelector(".lw");
         ES = w.children[0];
@@ -2453,6 +2470,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         TL = TS.firstChild;
         FOC = id;
         sel = null;
+        selectedNodes = new Set();
         T = { x: 0, y: 0, z: 1 };
         syncL();
         fit();
@@ -2507,6 +2525,14 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       });
       function pick(s) {
         sel = s;
+        selectedNodes = new Set(s?.t === "el" ? [s.id] : []);
+        render();
+        inspector();
+        model();
+      }
+      function selectNodes(ids) {
+        selectedNodes = new Set(ids.filter((id) => R[id] && id !== FOC));
+        sel = selectedNodes.size === 1 ? { t: "el", id: selectedNodes.values().next().value } : null;
         render();
         inspector();
         model();
@@ -2629,6 +2655,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           S.views.forEach((v) => ids.forEach((i) => delete v.nodes[i]));
         }
         sel = null;
+        selectedNodes.clear();
         render();
         inspector();
         model();
@@ -2647,15 +2674,20 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       }
       function inspector0() {
         const r = $("#rp");
+        if (selectedNodes.size > 1) {
+          r.innerHTML = `<h3>${selectedNodes.size} elements selected</h3><p class="mu">Drag any selected element to move them together. Hold Shift to bypass snapping. Alt-click an element to add or remove it from the selection.</p>`;
+          return;
+        }
         if (!sel) {
           r.innerHTML =
-            '<h3>Inspector</h3><p class="mu">Select an element or relationship to edit it. Drag the dot on a selected element to connect it. Use L1–L4 to change detail, and double-click an element or use its magnifying glass to open its children. Drag relationship labels and edge handles to position them.</p>';
+            '<h3>Inspector</h3><p class="mu">Click an element or relationship to edit it. Alt-drag on the canvas to select multiple elements, then drag one to move them together. Alt-click an element to toggle its selection. Drag the dot on a selected element to connect it. Use L1–L4 to change detail, and double-click an element or use its magnifying glass to open its children. Drag relationship labels and edge handles to position them.</p>';
           return;
         }
         if (sel.t === "rel") {
           const x = S.rels.find((q) => q.id === sel.id);
           if (!x) {
             sel = null;
+            selectedNodes.clear();
             return inspector();
           }
           const a = vis(x.from), b = vis(x.to),
@@ -2676,6 +2708,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         const e = El(sel.id);
         if (!e) {
           sel = null;
+          selectedNodes.clear();
           return inspector();
         }
         const bad = [e.id, ...dsc(e.id)],
@@ -2721,7 +2754,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             const n = S.views.filter((v) =>
               chain(e.id).some((a) => v.nodes[a]),
             ).length;
-            return `<div class="mi${sel && sel.id === e.id ? " on" : ""}" draggable="true" data-m="${e.id}" style="padding-left:${8 + depth(e) * 14}px;--c:${TY[e.type][1]}" title="Drag onto another element to set its parent"><i></i><span>${esc(e.name)}</span><em title="Diagrams using this element">${n}</em><button class="mi-x" type="button" data-model-del="${e.id}" title="Delete from shared model" aria-label="Delete ${esc(e.name)} from shared model">×</button></div>`;
+            return `<div class="mi${selectedNodes.has(e.id) || sel && sel.id === e.id ? " on" : ""}" draggable="true" data-m="${e.id}" style="padding-left:${8 + depth(e) * 14}px;--c:${TY[e.type][1]}" title="Drag onto another element to set its parent"><i></i><span>${esc(e.name)}</span><em title="Diagrams using this element">${n}</em><button class="mi-x" type="button" data-model-del="${e.id}" title="Delete from shared model" aria-label="Delete ${esc(e.name)} from shared model">×</button></div>`;
           })
           .join("");
       }
@@ -2740,7 +2773,10 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           );
           v.groups = (v.groups || []).filter((g) => g.members.length);
         });
+        selectedNodes = new Set([...selectedNodes].filter((item) => !ids.includes(item)));
         if (sel && sel.t === "el" && ids.includes(sel.id)) sel = null;
+        if (selectedNodes.size === 1)
+          sel = { t: "el", id: selectedNodes.values().next().value };
         render();
         inspector();
         model();
@@ -2826,6 +2862,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         V().cam = { ...T };
         S.cur = id;
         sel = null;
+        selectedNodes.clear();
         const c = V().cam;
         if (c) {
           T = { ...c };
@@ -3050,14 +3087,84 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             .pop();
         add(e.dataTransfer.getData("text/plain"), p, hit && hit[0]);
       });
+      const altCursor = (on) => document.body.classList.toggle("alt-select", on);
+      const freeMove = (e) => e.altKey || e.shiftKey;
+      addEventListener("keydown", (e) => { if (e.key === "Alt") altCursor(true); });
+      addEventListener("keyup", (e) => { if (e.key === "Alt") altCursor(false); });
+      addEventListener("blur", () => {
+        altCursor(false);
+        if (drag?.k === "marquee") { drag.box?.remove(); drag = null; }
+      });
+      function groupDrag(e) {
+        const visible = new Set([...selectedNodes].filter((id) => R[id] && id !== FOC)),
+          roots = [...visible].filter((id) => R[id].stub || !chain(id).slice(1).some((a) => visible.has(a) && !R[a]?.stub)),
+          level = LV(),
+          v = V(),
+          items = roots.map((id) => {
+            const r = R[id],
+              kind = r.stub ? "stub" : r.top === id ? "top" : "child",
+              parent = kind === "child" ? El(id).parent : null,
+              p = kind === "top" ? tposAt(id, level)
+                : kind === "child" ? v.pos?.[level]?.[id] || { x: r.x - R[parent].x, y: r.y - R[parent].y }
+                : lay().x[id] || r;
+            return { id, kind, parent, x: p.x, y: p.y };
+          }),
+          boxes = roots.map((id) => R[id]),
+          x = Math.min(...boxes.map((r) => r.x)),
+          y = Math.min(...boxes.map((r) => r.y)),
+          start = {
+            x, y,
+            w: Math.max(...boxes.map((r) => r.x + r.w)) - x,
+            h: Math.max(...boxes.map((r) => r.y + r.h)) - y,
+          },
+          moving = new Set(items.flatMap(({ id, kind }) => kind === "stub" ? [id] : [id, ...dsc(id)])),
+          related = new Set(roots.flatMap((id) => chain(id))),
+          targets = Object.entries(R)
+            .filter(([id, r]) => !moving.has(id) && !related.has(id) && items.some((item) =>
+              item.kind === "top" ? r.top === id && !r.stub :
+              item.kind === "child" ? El(id)?.parent === item.parent && !r.stub : r.stub))
+            .map(([, r]) => ({ x: r.x, y: r.y, w: r.w, h: r.h }));
+        return {
+          k: "group", sx: e.clientX, sy: e.clientY, level, items,
+          snap: { start, targets },
+          minDx: Math.max(-Infinity, ...items.filter((i) => i.kind === "child").map((i) => P - i.x)),
+          minDy: Math.max(-Infinity, ...items.filter((i) => i.kind === "child").map((i) => HD - i.y)),
+        };
+      }
+      function freezeGroupChildren(items, level) {
+        const parents = new Set(items.filter((i) => i.kind === "child").map((i) => i.parent));
+        if (!parents.size) return;
+        const v = V();
+        v.pos = v.pos || {};
+        const positions = (v.pos[level] = v.pos[level] || {});
+        parents.forEach((id) => {
+          const parent = R[id];
+          S.els.filter((c) => c.parent === id && R[c.id]).forEach((c) => {
+            if (!positions[c.id]) positions[c.id] = {
+              x: R[c.id].x - parent.x, y: R[c.id].y - parent.y,
+            };
+          });
+        });
+      }
       cv.addEventListener("pointerdown", (e) => {
         if (e.button) return;
+        altCursor(e.altKey);
         clearSnapGuides();
         if (e.target.classList.contains("bd")) {
           closeTo(+e.target.dataset.k - 1);
           return;
         }
         if (e.target.closest(".dh")) return;
+        if (e.altKey) {
+          e.preventDefault();
+          lastDown = {};
+          const node = e.target.closest("[data-id]");
+          drag = {
+            k: "marquee", sx: e.clientX, sy: e.clientY, start: w2(e),
+            hitId: node && node.dataset.id !== FOC ? node.dataset.id : null,
+          };
+          return;
+        }
         const zoom = e.target.closest("[data-dive]");
         if (zoom) {
           e.preventDefault();
@@ -3118,6 +3225,15 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             now = Date.now(),
             dbl = lastDown.id === id && now - lastDown.t < 350;
           lastDown = { id, t: now };
+          if (dbl && !R[id].stub && !(FOC && id === FOC)) {
+            lastDown = {};
+            dive(id);
+            return;
+          }
+          if (selectedNodes.size > 1 && selectedNodes.has(id) && id !== FOC) {
+            drag = groupDrag(e);
+            return;
+          }
           pick({ t: "el", id });
           if (R[id].stub) {
             drag = { k: "stub", id, sx: e.clientX, sy: e.clientY, ox: R[id].x, oy: R[id].y, snap: snapFrame(id, "stub") };
@@ -3129,10 +3245,6 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           }
           const top = R[id].top,
             p = tpos(top);
-          if (dbl) {
-            dive(id);
-            return;
-          }
           if (top !== id) {
             drag = { k: "child", id, sx: e.clientX, sy: e.clientY, snap: snapFrame(id, "child") };
             return;
@@ -3182,17 +3294,31 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             return;
           }
           lastDown = { id: "bg", t: now };
-          if (sel) pick(null);
+          if (sel || selectedNodes.size) pick(null);
           drag = { k: "pan", sx: e.clientX, sy: e.clientY, ox: T.x, oy: T.y };
         }
       });
       addEventListener("pointermove", (e) => {
+        altCursor(e.altKey);
         if (!drag) return;
         if (drag.sx != null && !drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 1) {
           drag.moved = true;
           lastDown = {};
         }
-        if (drag.k === "pan") {
+        if (drag.k === "marquee") {
+          const q = w2(e),
+            x = Math.min(drag.start.x, q.x), y = Math.min(drag.start.y, q.y),
+            width = Math.abs(q.x - drag.start.x), height = Math.abs(q.y - drag.start.y);
+          if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) <= 4) return;
+          if (!drag.box) {
+            drag.box = document.createElement("div");
+            drag.box.className = "marquee";
+            w.appendChild(drag.box);
+          }
+          Object.assign(drag.box.style, {
+            left: x + "px", top: y + "px", width: width + "px", height: height + "px",
+          });
+        } else if (drag.k === "pan") {
           T.x = drag.ox + e.clientX - drag.sx;
           T.y = drag.oy + e.clientY - drag.sy;
           applyT();
@@ -3208,6 +3334,30 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
               : dy >= 0 ? "bottom" : "top";
           setEdgeSetting(drag.key, drag.end === "source" ? "sourceSide" : "targetSide", side);
           render();
+        } else if (drag.k === "group") {
+          if (!drag.moved) return;
+          if (!drag.fz) {
+            freezeGroupChildren(drag.items, drag.level);
+            drag.fz = true;
+          }
+          const start = drag.snap.start,
+            x = Math.max(start.x + drag.minDx, start.x + (e.clientX - drag.sx) / T.z),
+            y = Math.max(start.y + drag.minDy, start.y + (e.clientY - drag.sy) / T.z),
+            snapped = snapPosition(drag.snap, x, y, freeMove(e),
+              start.x + drag.minDx, start.y + drag.minDy),
+            dx = snapped.x - start.x, dy = snapped.y - start.y,
+            v = V(),
+            top = drag.level > 1 ? ((v.tp = v.tp || {})[drag.level] = v.tp[drag.level] || {}) : v.nodes,
+            child = (v.pos = v.pos || {})[drag.level] = v.pos[drag.level] || {},
+            stub = drag.items.some((i) => i.kind === "stub") ? lay(1).x : null;
+          drag.items.forEach((item) => {
+            const p = { x: item.x + dx, y: item.y + dy };
+            if (item.kind === "top") top[item.id] = p;
+            else if (item.kind === "child") child[item.id] = p;
+            else stub[item.id] = p;
+          });
+          render();
+          showSnapGuides(snapped, { x: 0, y: 0 });
         } else if (drag.k === "child") {
           const v = V(),
             L = PK();
@@ -3233,7 +3383,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             drag.snap,
             Math.max(P, drag.ox + (e.clientX - drag.sx) / T.z),
             Math.max(HD, drag.oy + (e.clientY - drag.sy) / T.z),
-            e.altKey, P, HD,
+            freeMove(e), P, HD,
           );
           p.x = snapped.x;
           p.y = snapped.y;
@@ -3255,7 +3405,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           render();
         } else if (drag.k === "stub") {
           const o = lay(1).x;
-          const snapped = snapPosition(drag.snap, drag.ox + (e.clientX - drag.sx) / T.z, drag.oy + (e.clientY - drag.sy) / T.z, e.altKey);
+          const snapped = snapPosition(drag.snap, drag.ox + (e.clientX - drag.sx) / T.z, drag.oy + (e.clientY - drag.sy) / T.z, freeMove(e));
           o[drag.id] = { x: snapped.x, y: snapped.y };
           render();
           showSnapGuides(snapped, { x: 0, y: 0 });
@@ -3271,7 +3421,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             p = k > 1 ? (((v.tp = v.tp || {})[k] = v.tp[k] || {})[drag.top] = {}) : v.nodes[drag.top],
             dx = (e.clientX - drag.sx) / T.z,
             dy = (e.clientY - drag.sy) / T.z,
-            snapped = snapPosition(drag.snap, drag.snap.start.x + dx, drag.snap.start.y + dy, e.altKey);
+            snapped = snapPosition(drag.snap, drag.snap.start.x + dx, drag.snap.start.y + dy, freeMove(e));
           p.x = drag.ox + snapped.x - drag.snap.start.x;
           p.y = drag.oy + snapped.y - drag.snap.start.y;
           render();
@@ -3284,7 +3434,27 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         }
       });
       addEventListener("pointerup", (e) => {
+        altCursor(e.altKey);
         if (!drag) return;
+        if (drag.k === "marquee") {
+          const q = w2(e),
+            moved = Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4;
+          drag.box?.remove();
+          if (moved) {
+            const x0 = Math.min(drag.start.x, q.x), x1 = Math.max(drag.start.x, q.x),
+              y0 = Math.min(drag.start.y, q.y), y1 = Math.max(drag.start.y, q.y);
+            selectNodes(Object.entries(R).filter(([id, r]) => id !== FOC &&
+              r.x >= x0 && r.y >= y0 && r.x + r.w <= x1 && r.y + r.h <= y1)
+              .map(([id]) => id));
+          } else if (drag.hitId) {
+            const next = new Set(selectedNodes);
+            if (next.has(drag.hitId)) next.delete(drag.hitId);
+            else next.add(drag.hitId);
+            selectNodes([...next]);
+          } else selectNodes([]);
+          drag = null;
+          return;
+        }
         clearSnapGuides();
         if (drag.k === "port") inspector();
         if (drag.k === "leg") {
@@ -3307,8 +3477,16 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             pick({ t: "rel", id: r.id, fresh: 1 });
           }
         }
+        const changed = drag.k !== "group" || drag.fz;
         drag = null;
-        save();
+        if (changed) save();
+      });
+      addEventListener("pointercancel", () => {
+        drag?.box?.remove();
+        if (drag?.k === "link") TS.style.display = "none";
+        if (drag?.k !== "marquee" && drag?.moved) save();
+        drag = null;
+        clearSnapGuides();
       });
       cv.addEventListener(
         "wheel",
@@ -3339,6 +3517,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           pin = 0;
         } else pin = l;
         render();
+        if (selectedNodes.size > 1) selectNodes([...selectedNodes]);
       }
       document
         .querySelectorAll(".lv")
@@ -4097,6 +4276,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       });
       function boot() {
         closeTo(0);
+        selectedNodes.clear();
         tabs();
         model();
         inspector();
