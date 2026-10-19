@@ -143,6 +143,11 @@
       .ib:hover {
         background: var(--sf2);
       }
+      .ib.on {
+        border-color: var(--ac);
+        color: var(--ac);
+        background: color-mix(in srgb, var(--ac) 10%, var(--sf));
+      }
       #zp {
         width: 42px;
         text-align: center;
@@ -180,6 +185,7 @@
         transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
       }
       #es,
+      #sg,
       #ts {
         position: absolute;
         left: 0;
@@ -191,6 +197,12 @@
       }
       #ts {
         display: none;
+      }
+      .snap-guide {
+        stroke: var(--ac);
+        stroke-width: 1;
+        stroke-dasharray: 4 3;
+        vector-effect: non-scaling-stroke;
       }
       #nd {
         position: absolute;
@@ -873,7 +885,7 @@
       .lc{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:grab;background-image:radial-gradient(circle,var(--dot) 1.2px,transparent 1.4px)}
       .lw{position:absolute;left:0;top:0;transform-origin:0 0}
       .lw.an{transition:transform .4s cubic-bezier(.2,.8,.2,1)}
-      .les,.lts{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none}
+      .les,.lsg,.lts{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none}
       .lts{display:none}
       .lnd{position:absolute;left:0;top:0}
       .ltl{stroke:var(--ac);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}
@@ -891,7 +903,8 @@
       .n:not(.x){z-index:2}
       .n:not(.x).hl,.el{z-index:3}
       .lhs,#hs{z-index:4}
-      .lts,#ts{z-index:5}
+      .lsg,#sg{z-index:5}
+      .lts,#ts{z-index:6}
       #reset-layer:disabled{opacity:.45;cursor:not-allowed}
       @media (max-width:700px){.dlg{left:14px;right:14px;bottom:14px}}
       @media (prefers-reduced-motion:reduce){.bd,.dlg{animation:none}.flow{display:none}}
@@ -929,6 +942,7 @@
       <button class="ib" id="zo">−</button><span id="zp">100%</span
       ><button class="ib" id="zi">+</button>
       <button class="ib" id="zf" title="Fit to view">Fit</button
+      ><button class="ib" id="snap" type="button" aria-pressed="true" title="Snap elements while dragging; hold Alt to move freely">Snap</button
       ><button class="ib" id="reset-layer" title="Copy node positions and edge bends from the previous layer">Reset position of this layer</button
       ><button class="ib" id="tgb" title="Show or hide the tag legend">
         Tags</button
@@ -945,6 +959,7 @@
           <svg id="es"></svg>
           <div id="nd"></div>
           <svg id="hs"></svg>
+          <svg id="sg" aria-hidden="true"></svg>
           <svg id="ts"><line id="tl" /></svg>
         </div>
       </div>
@@ -1383,6 +1398,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         ES = $("#es"),
         ND = $("#nd"),
         HS = $("#hs"),
+        SG = $("#sg"),
         TS = $("#ts"),
         TL = $("#tl"),
         FOC = null,
@@ -1398,6 +1414,8 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         editTab = null,
         lastDown = {},
         modelDragId = null;
+      let snapOn = true;
+      try { snapOn = localStorage.getItem("c4model-snap") !== "off"; } catch (e) {}
       const shareParam = new URLSearchParams(location.search).get("share");
       let shareLoaded = false,
         shareError = "";
@@ -1573,6 +1591,57 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           y: (e.clientY - b.top - T.y) / T.z,
         };
       };
+      const clearSnapGuides = () => { SG.innerHTML = ""; };
+      function snapFrame(id, kind) {
+        const r = R[id],
+          parent = kind === "child" ? El(id).parent : null,
+          origin = parent ? R[parent] : { x: 0, y: 0 },
+          targets = Object.entries(R)
+            .filter(([other, q]) => other !== id && (
+              kind === "child" ? El(other)?.parent === parent && !q.stub :
+              kind === "stub" ? q.stub : q.top === other && !q.stub
+            ))
+            .map(([, q]) => ({ x: q.x - origin.x, y: q.y - origin.y, w: q.w, h: q.h }));
+        return { parent, start: { x: r.x - origin.x, y: r.y - origin.y, w: r.w, h: r.h }, targets };
+      }
+      function snapPosition(frame, x, y, free, minX = -Infinity, minY = -Infinity) {
+        const result = { x, y, w: frame.start.w, h: frame.start.h, guides: [] };
+        if (!snapOn || free) return result;
+        const fractions = [0.5, 0, 1],
+          threshold = 8 / T.z;
+        for (const axis of ["x", "y"]) {
+          const size = axis === "x" ? "w" : "h",
+            raw = axis === "x" ? x : y;
+          let best = null;
+          for (const target of frame.targets)
+            for (const from of fractions)
+              for (const to of fractions) {
+                const delta = target[axis] + target[size] * to - raw - frame.start[size] * from;
+                if (raw + delta >= (axis === "x" ? minX : minY) &&
+                    Math.abs(delta) <= threshold && (!best || Math.abs(delta) < Math.abs(best.delta)))
+                  best = { delta, target, line: target[axis] + target[size] * to };
+              }
+          if (best) {
+            result[axis] = raw + best.delta;
+            result.guides.push({ axis, target: best.target, line: best.line });
+          }
+        }
+        return result;
+      }
+      function showSnapGuides(result, origin) {
+        SG.innerHTML = result.guides.map(({ axis, target, line }) => {
+          if (axis === "x") {
+            const x = line + origin.x,
+              y1 = Math.min(result.y, target.y) + origin.y - 12,
+              y2 = Math.max(result.y + result.h, target.y + target.h) + origin.y + 12;
+            return `<line class="snap-guide" x1="${x}" y1="${y1}" x2="${x}" y2="${y2}"/>`;
+          }
+          const y = line + origin.y,
+            x1 = Math.min(result.x, target.x) + origin.x - 12,
+            x2 = Math.max(result.x + result.w, target.x + target.w) + origin.x + 12;
+          return `<line class="snap-guide" x1="${x1}" y1="${y}" x2="${x2}" y2="${y}"/>`;
+        }).join("");
+      }
       const measure = document.createElement("canvas").getContext("2d");
       function wrappedLines(value, width, font) {
         measure.font = font;
@@ -1876,6 +1945,29 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           }
           return out;
         },
+        autoPath = (a, b, hz) => {
+          if (Math.abs(a.x - b.x) < 0.5 || Math.abs(a.y - b.y) < 0.5) return [a, b];
+          return hz
+            ? [a, { x: (a.x + b.x) / 2, y: a.y }, { x: (a.x + b.x) / 2, y: b.y }, b]
+            : [a, { x: a.x, y: (a.y + b.y) / 2 }, { x: b.x, y: (a.y + b.y) / 2 }, b];
+        },
+        cleanPath = (points) => {
+          const out = [];
+          for (const p of points) {
+            if (out.length && Math.hypot(p.x - out[out.length - 1].x, p.y - out[out.length - 1].y) < 0.5) continue;
+            while (out.length > 1) {
+              const a = out[out.length - 2],
+                b = out[out.length - 1],
+                abx = b.x - a.x, aby = b.y - a.y,
+                bcx = p.x - b.x, bcy = p.y - b.y;
+              if (abx * bcx + aby * bcy < 0 ||
+                  Math.abs(abx * bcy - aby * bcx) > 0.5 * (Math.hypot(abx, aby) + Math.hypot(bcx, bcy))) break;
+              out.pop();
+            }
+            out.push(p);
+          }
+          return out.length > 1 ? out : points.slice(0, 2);
+        },
         rpath = (P, r) => {
           let d = `M${P[0].x} ${P[0].y}`;
           for (let i = 1; i < P.length - 1; i++) {
@@ -1912,7 +2004,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           hor = Math.abs(u.y - v.y) < 0.5,
           ver = Math.abs(u.x - v.x) < 0.5,
           m = { x: (u.x + v.x) / 2, y: (u.y + v.y) / 2 };
-        let W = g.routed ? P.slice(1, -1).map((q) => ({ x: q.x, y: q.y })) : [];
+        let W = P.slice(1, -1).map((q) => ({ x: q.x, y: q.y }));
         if (hor || ver) {
           const J = 36 / T.z,
             hw = Math.min(Math.hypot(v.x - u.x, v.y - u.y) / 4, 40 / T.z),
@@ -2002,15 +2094,16 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             rt = !!(W && W.length),
             s0 = hz ? { x: A.x + (sg > 0 ? A.w : 0), y: ac.y + lat } : { x: ac.x + lat, y: A.y + (sg > 0 ? A.h : 0) },
             t0 = hz ? { x: B.x + (sg > 0 ? 0 : B.w), y: bc.y + lat } : { x: bc.x + lat, y: B.y + (sg > 0 ? 0 : B.h) },
-            P = rt ? orth(A, B, W, lat) : [s0, t0],
-            e1 = P[P.length - 1],
-            e0 = P[P.length - 2],
-            mid = midPt(P),
+            P = rt ? orth(A, B, W, lat) : autoPath(s0, t0, hz),
+            draw = cleanPath(P),
+            e1 = draw[draw.length - 1],
+            e0 = draw[draw.length - 2],
+            mid = midPt(draw),
             offset = labelget(key),
             lp = { x: mid.x + offset.x, y: mid.y + offset.y },
             ang = (Math.atan2(e1.y - e0.y, e1.x - e0.x) * 180) / Math.PI,
             on = sel && sel.t === "rel" && q.rs.some((r) => r.id === sel.id) ? " sel" : activeKeys.has(key) ? " conn" : "",
-            d = rpath(P, 12),
+            d = rpath(draw, 12),
             r0 = q.rs[0],
             hs = (id) => (R[id].e.tags || []).includes(hl),
             flow = !!hl && (hs(q.a) || hs(q.b)),
@@ -2026,6 +2119,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           }
           if (on)
             P.slice(1).forEach((v, k) => {
+              if (!rt && P.length > 2 && k !== 1) return;
               const u = P[k];
               if (Math.hypot(v.x - u.x, v.y - u.y) * T.z < 30) return;
               const o = Math.abs(u.y - v.y) < 0.5 ? "h" : Math.abs(u.x - v.x) < 0.5 ? "v" : "d";
@@ -2184,8 +2278,9 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       };
       function popL() {
         const l = STK.pop();
+        clearSnapGuides();
         l.bd.remove();
-        ({ cv, w, ES, ND, HS, TS, TL, T, R, sel, FOC } = l.saved);
+        ({ cv, w, ES, ND, HS, SG, TS, TL, T, R, sel, FOC } = l.saved);
         syncL();
       }
       function closeTo(n) {
@@ -2203,16 +2298,18 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         bd.className = "bd";
         bd.dataset.k = STK.length + 1;
         bd.innerHTML =
-          `<div class="dlg"><div class="dh"><div class="bc"></div><span class="ll">L${level}</span><button class="bt lr" title="Copy node positions and edge bends from the previous layer">Reset position of this layer</button><button class="cx" title="Close layer (Esc)">×</button></div><div class="lc"><div class="lw"><svg class="les"></svg><div class="lnd"></div><svg class="lhs"></svg><svg class="lts"><line class="ltl"/></svg></div></div></div>`;
+          `<div class="dlg"><div class="dh"><div class="bc"></div><span class="ll">L${level}</span><button class="bt lr" title="Copy node positions and edge bends from the previous layer">Reset position of this layer</button><button class="cx" title="Close layer (Esc)">×</button></div><div class="lc"><div class="lw"><svg class="les"></svg><div class="lnd"></div><svg class="lhs"></svg><svg class="lsg" aria-hidden="true"></svg><svg class="lts"><line class="ltl"/></svg></div></div></div>`;
         host.appendChild(bd);
         const dlg = bd.firstChild;
-        STK.push({ bd, dlg, foc: id, level, bc: dlg.querySelector(".bc"), saved: { cv, w, ES, ND, HS, TS, TL, T, R, sel, FOC } });
+        clearSnapGuides();
+        STK.push({ bd, dlg, foc: id, level, bc: dlg.querySelector(".bc"), saved: { cv, w, ES, ND, HS, SG, TS, TL, T, R, sel, FOC } });
         cv = dlg.querySelector(".lc");
         w = dlg.querySelector(".lw");
         ES = w.children[0];
         ND = w.children[1];
         HS = w.children[2];
-        TS = w.children[3];
+        SG = w.children[3];
+        TS = w.children[4];
         TL = TS.firstChild;
         FOC = id;
         sel = null;
@@ -2797,6 +2894,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       });
       cv.addEventListener("pointerdown", (e) => {
         if (e.button) return;
+        clearSnapGuides();
         if (e.target.classList.contains("bd")) {
           closeTo(+e.target.dataset.k - 1);
           return;
@@ -2860,7 +2958,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           lastDown = { id, t: now };
           pick({ t: "el", id });
           if (R[id].stub) {
-            drag = { k: "stub", id, sx: e.clientX, sy: e.clientY, ox: R[id].x, oy: R[id].y };
+            drag = { k: "stub", id, sx: e.clientX, sy: e.clientY, ox: R[id].x, oy: R[id].y, snap: snapFrame(id, "stub") };
             return;
           }
           if (FOC && id === FOC) {
@@ -2874,7 +2972,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             return;
           }
           if (top !== id) {
-            drag = { k: "child", id, sx: e.clientX, sy: e.clientY };
+            drag = { k: "child", id, sx: e.clientX, sy: e.clientY, snap: snapFrame(id, "child") };
             return;
           }
           drag = {
@@ -2884,6 +2982,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             sy: e.clientY,
             ox: p.x,
             oy: p.y,
+            snap: snapFrame(top, "move"),
           };
         } else if (ed) {
           const id = ed.dataset.e,
@@ -2927,6 +3026,10 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       });
       addEventListener("pointermove", (e) => {
         if (!drag) return;
+        if (drag.sx != null && !drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 1) {
+          drag.moved = true;
+          lastDown = {};
+        }
         if (drag.k === "pan") {
           T.x = drag.ox + e.clientX - drag.sx;
           T.y = drag.oy + e.clientY - drag.sy;
@@ -2952,9 +3055,17 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             drag.oy = m[drag.id].y;
           }
           const p = v.pos[drag.L][drag.id];
-          p.x = Math.max(P, drag.ox + (e.clientX - drag.sx) / T.z);
-          p.y = Math.max(HD, drag.oy + (e.clientY - drag.sy) / T.z);
+          const snapped = snapPosition(
+            drag.snap,
+            Math.max(P, drag.ox + (e.clientX - drag.sx) / T.z),
+            Math.max(HD, drag.oy + (e.clientY - drag.sy) / T.z),
+            e.altKey, P, HD,
+          );
+          p.x = snapped.x;
+          p.y = snapped.y;
           render();
+          const parent = R[drag.snap.parent];
+          showSnapGuides(snapped, parent);
         } else if (drag.k === "leg") {
           const q = w2(e),
             g = drag.g;
@@ -2982,8 +3093,10 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           render();
         } else if (drag.k === "stub") {
           const o = lay(1).x;
-          o[drag.id] = { x: drag.ox + (e.clientX - drag.sx) / T.z, y: drag.oy + (e.clientY - drag.sy) / T.z };
+          const snapped = snapPosition(drag.snap, drag.ox + (e.clientX - drag.sx) / T.z, drag.oy + (e.clientY - drag.sy) / T.z, e.altKey);
+          o[drag.id] = { x: snapped.x, y: snapped.y };
           render();
+          showSnapGuides(snapped, { x: 0, y: 0 });
         } else if (drag.k === "label") {
           labelset(drag.key, {
             x: drag.ox + (e.clientX - drag.sx) / T.z,
@@ -2993,10 +3106,14 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         } else if (drag.k === "move") {
           const v = V(),
             k = lvl(),
-            p = k > 1 ? (((v.tp = v.tp || {})[k] = v.tp[k] || {})[drag.top] = {}) : v.nodes[drag.top];
-          p.x = drag.ox + (e.clientX - drag.sx) / T.z;
-          p.y = drag.oy + (e.clientY - drag.sy) / T.z;
+            p = k > 1 ? (((v.tp = v.tp || {})[k] = v.tp[k] || {})[drag.top] = {}) : v.nodes[drag.top],
+            dx = (e.clientX - drag.sx) / T.z,
+            dy = (e.clientY - drag.sy) / T.z,
+            snapped = snapPosition(drag.snap, drag.snap.start.x + dx, drag.snap.start.y + dy, e.altKey);
+          p.x = drag.ox + snapped.x - drag.snap.start.x;
+          p.y = drag.oy + snapped.y - drag.snap.start.y;
           render();
+          showSnapGuides(snapped, { x: 0, y: 0 });
         } else {
           const q = w2(e),
             l = TL;
@@ -3006,6 +3123,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       });
       addEventListener("pointerup", (e) => {
         if (!drag) return;
+        clearSnapGuides();
         if (drag.k === "leg") {
           ewFix(drag.key);
           render();
@@ -3066,6 +3184,18 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       $("#zi").onclick = () => go(T.z * 1.35, selC());
       $("#zo").onclick = () => go(T.z / 1.35, selC());
       $("#zf").onclick = fit;
+      const syncSnapButton = () => {
+        const button = $("#snap");
+        button.classList.toggle("on", snapOn);
+        button.setAttribute("aria-pressed", String(snapOn));
+      };
+      $("#snap").onclick = () => {
+        snapOn = !snapOn;
+        clearSnapGuides();
+        syncSnapButton();
+        try { localStorage.setItem("c4model-snap", snapOn ? "on" : "off"); } catch (e) {}
+      };
+      syncSnapButton();
       $("#t1").onclick = () => $("#lp").classList.toggle("off");
       $("#t2").onclick = () => $("#rp").classList.toggle("off");
       $("#th").onclick = () => {
