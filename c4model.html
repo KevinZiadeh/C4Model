@@ -896,6 +896,9 @@
       .wh circle{fill:var(--sf);stroke:var(--ac);stroke-width:2;vector-effect:non-scaling-stroke}
       .wh:hover circle{fill:var(--ac)}
       .wh.h{cursor:ns-resize}.wh.v{cursor:ew-resize}.wh.d{cursor:move}
+      .port-grip,.port-grip rect{pointer-events:all;cursor:crosshair}
+      .port-grip rect{fill:var(--sf);stroke:var(--ac);stroke-width:2;vector-effect:non-scaling-stroke}
+      .port-grip:hover rect{fill:var(--ac)}
       .les,.lhs,#es,#hs{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none}
       /* Expanded parents are a backdrop; edges remain clickable above them. */
       .n.x{z-index:0}
@@ -1423,6 +1426,16 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         s && Array.isArray(s.els) && Array.isArray(s.rels) &&
         Array.isArray(s.views) && s.views.length > 0 &&
         s.views.some((v) => v.id === s.cur && v.nodes && typeof v.nodes === "object");
+      const validEdgeRoute = (route) => {
+        const point = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.y),
+          side = (s) => s == null || ["auto", "top", "right", "bottom", "left"].includes(s);
+        return Array.isArray(route)
+          ? route.every(point)
+          : !!route && Array.isArray(route.points) && route.points.every(point) &&
+            point(route.from) && point(route.to) &&
+            (route.mode == null || ["straight", "routed"].includes(route.mode)) &&
+            side(route.sourceSide) && side(route.targetSide);
+      };
       const validShareWorkspace = (s) => {
         try {
           if (!validWorkspace(s)) return false;
@@ -1462,11 +1475,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             (!v.groups || (Array.isArray(v.groups) && v.groups.every((g) =>
               safeId(g.id) && typeof g.name === "string" &&
               Array.isArray(g.members) && g.members.every((id) => ids.has(id))))) &&
-            Object.values(v.ew || {}).every((routes) => Object.values(routes).every((route) => {
-              const vertices = Array.isArray(route) ? route : route && route.points;
-              return Array.isArray(vertices) && vertices.every(point) &&
-                (Array.isArray(route) || (point(route.from) && point(route.to)));
-            })),
+            Object.values(v.ew || {}).every((routes) => Object.values(routes).every(validEdgeRoute)),
           );
         } catch (e) {
           return false;
@@ -1862,6 +1871,18 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           const g = EG[k];
           return [A || (g && R[g.a]), B || (g && R[g.b])];
         },
+        edgeSettings = (k) => {
+          const layer = EWK(k),
+            map = V().ew && V().ew[layer],
+            route = (map && map[k]) || (layer[0] === "l" && legacyEdgeValue(V().ew, k)?.value),
+            points = Array.isArray(route) ? route : route?.points || [];
+          return {
+            mode: route?.mode === "straight" || route?.mode === "routed"
+              ? route.mode : points.length ? "routed" : "straight",
+            sourceSide: route?.sourceSide || "auto",
+            targetSide: route?.targetSide || "auto",
+          };
+        },
         ewget = (k, A, B) => {
           const v = V();
           const layer = EWK(k),
@@ -1889,15 +1910,26 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             };
           });
         },
-        ewset = (k, W) => {
+        writeEdgeRoute = (k, points, settings) => {
           const v = V();
           v.ew = v.ew || {};
           const layer = EWK(k),
             m = (v.ew[layer] = v.ew[layer] || {});
           const [A, B] = edgeRects(k);
-          if (W && W.length && A && B) m[k] = { points: W, ...edgeCenters(A, B) };
+          if (!A || !B) return;
+          if (points.length || settings.mode !== "straight" || settings.sourceSide !== "auto" || settings.targetSide !== "auto")
+            m[k] = { points, ...edgeCenters(A, B), ...settings };
           else delete m[k];
           if (layer[0] === "l") clearLegacyEdge(v.ew, k);
+        },
+        ewset = (k, W) => {
+          const settings = edgeSettings(k);
+          writeEdgeRoute(k, W || [], { ...settings, mode: W?.length ? "routed" : "straight" });
+        },
+        setEdgeSetting = (k, field, value) => {
+          const settings = edgeSettings(k),
+            points = field === "mode" ? [] : ewget(k) || [];
+          writeEdgeRoute(k, points, { ...settings, [field]: value });
         },
         labelget = (k) => {
           const maps = V().labels || {},
@@ -1929,10 +1961,57 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             ? { x: o.x > c.x ? Rc.x + Rc.w : Rc.x, y: c.y + lt, h: 1 }
             : { x: c.x + lt, y: o.y > c.y ? Rc.y + Rc.h : Rc.y, h: 0 };
         },
-        orth = (A, B, W, lt) => {
-          const s0 = anch(A, W[0], lt),
-            t0 = anch(B, W[W.length - 1], lt),
-            P = [s0, ...W, t0],
+        sideNormal = {
+          top: { x: 0, y: -1 }, right: { x: 1, y: 0 },
+          bottom: { x: 0, y: 1 }, left: { x: -1, y: 0 },
+        },
+        sideOf = (Rc, p) => [
+          ["top", Math.abs(p.y - Rc.y)],
+          ["right", Math.abs(p.x - Rc.x - Rc.w)],
+          ["bottom", Math.abs(p.y - Rc.y - Rc.h)],
+          ["left", Math.abs(p.x - Rc.x)],
+        ].sort((a, b) => a[1] - b[1])[0][0],
+        edgePort = (Rc, side, toward, lt, manual = false) => {
+          let p;
+          if (side === "auto") {
+            p = manual ? anch(Rc, toward, lt) : clip(Rc, toward);
+            side = sideOf(Rc, p);
+            if (!manual && lt) {
+              if (side === "top" || side === "bottom") p.x = Math.max(Rc.x + 10, Math.min(Rc.x + Rc.w - 10, p.x + lt));
+              else p.y = Math.max(Rc.y + 10, Math.min(Rc.y + Rc.h - 10, p.y + lt));
+            }
+          } else {
+            p = { x: Rc.x + Rc.w / 2, y: Rc.y + Rc.h / 2 };
+            if (side === "top" || side === "bottom") {
+              p.x += lt;
+              p.y = side === "top" ? Rc.y : Rc.y + Rc.h;
+            } else {
+              p.y += lt;
+              p.x = side === "left" ? Rc.x : Rc.x + Rc.w;
+            }
+          }
+          return { ...p, side, h: side === "left" || side === "right" ? 1 : 0 };
+        },
+        portExit = (p, distance = 24) => ({
+          x: p.x + sideNormal[p.side].x * distance,
+          y: p.y + sideNormal[p.side].y * distance,
+        }),
+        straightPorts = (A, B, settings, lt) => {
+          const ac = { x: A.x + A.w / 2, y: A.y + A.h / 2 },
+            bc = { x: B.x + B.w / 2, y: B.y + B.h / 2 },
+            hint = settings.targetSide === "auto" ? bc : edgePort(B, settings.targetSide, ac, lt),
+            source = edgePort(A, settings.sourceSide, hint, lt),
+            target = edgePort(B, settings.targetSide, source, lt);
+          return [settings.sourceSide === "auto" ? edgePort(A, "auto", target, lt) : source, target];
+        },
+        orth = (A, B, W, lt, settings) => {
+          const s0 = edgePort(A, settings.sourceSide, W[0], lt, true),
+            t0 = edgePort(B, settings.targetSide, W[W.length - 1], lt, true),
+            P = [s0,
+              ...(settings.sourceSide === "auto" ? [] : [portExit(s0)]),
+              ...W,
+              ...(settings.targetSide === "auto" ? [] : [portExit(t0)]),
+              t0],
             out = [s0];
           for (let i = 1; i < P.length; i++) {
             const u = out[out.length - 1],
@@ -1944,12 +2023,6 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             out.push(v);
           }
           return out;
-        },
-        autoPath = (a, b, hz) => {
-          if (Math.abs(a.x - b.x) < 0.5 || Math.abs(a.y - b.y) < 0.5) return [a, b];
-          return hz
-            ? [a, { x: (a.x + b.x) / 2, y: a.y }, { x: (a.x + b.x) / 2, y: b.y }, b]
-            : [a, { x: a.x, y: (a.y + b.y) / 2 }, { x: b.x, y: (a.y + b.y) / 2 }, b];
         },
         cleanPath = (points) => {
           const out = [];
@@ -1967,6 +2040,58 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             out.push(p);
           }
           return out.length > 1 ? out : points.slice(0, 2);
+        },
+        autoRoute = (A, B, settings, lt) => {
+          const [source, target] = straightPorts(A, B, settings, lt),
+            start = portExit(source),
+            end = portExit(target),
+            mx = (start.x + end.x) / 2,
+            my = (start.y + end.y) / 2,
+            obstacles = Object.values(R).filter((r) => r !== A && r !== B && !r.ex),
+            nearby = obstacles.filter((r) =>
+              r.x < Math.max(A.x + A.w, B.x + B.w) + 120 &&
+              r.x + r.w > Math.min(A.x, B.x) - 120 &&
+              r.y < Math.max(A.y + A.h, B.y + B.h) + 120 &&
+              r.y + r.h > Math.min(A.y, B.y) - 120),
+            left = Math.min(A.x, B.x, ...nearby.map((r) => r.x)) - 32,
+            right = Math.max(A.x + A.w, B.x + B.w, ...nearby.map((r) => r.x + r.w)) + 32,
+            top = Math.min(A.y, B.y, ...nearby.map((r) => r.y)) - 32,
+            bottom = Math.max(A.y + A.h, B.y + B.h, ...nearby.map((r) => r.y + r.h)) + 32,
+            routes = [
+              [start, end],
+              [start, { x: end.x, y: start.y }, end],
+              [start, { x: start.x, y: end.y }, end],
+              [start, { x: mx, y: start.y }, { x: mx, y: end.y }, end],
+              [start, { x: start.x, y: my }, { x: end.x, y: my }, end],
+              ...[left, right].map((x) => [start, { x, y: start.y }, { x, y: end.y }, end]),
+              ...[top, bottom].map((y) => [start, { x: start.x, y }, { x: end.x, y }, end]),
+            ],
+            crosses = (a, b, r) => {
+              const pad = 4,
+                x0 = r.x - pad, x1 = r.x + r.w + pad,
+                y0 = r.y - pad, y1 = r.y + r.h + pad;
+              if (Math.abs(a.x - b.x) < 0.5)
+                return a.x > x0 && a.x < x1 && Math.max(Math.min(a.y, b.y), y0) < Math.min(Math.max(a.y, b.y), y1);
+              if (Math.abs(a.y - b.y) < 0.5)
+                return a.y > y0 && a.y < y1 && Math.max(Math.min(a.x, b.x), x0) < Math.min(Math.max(a.x, b.x), x1);
+              return true;
+            };
+          let best = null, score = Infinity;
+          for (const route of routes) {
+            const path = cleanPath([source, ...route, target]);
+            let cost = (path.length - 2) * 12;
+            for (let i = 1; i < path.length; i++) {
+              const a = path[i - 1], b = path[i];
+              if (Math.abs(a.x - b.x) >= 0.5 && Math.abs(a.y - b.y) >= 0.5) { cost = Infinity; break; }
+              cost += Math.hypot(b.x - a.x, b.y - a.y);
+              if (i > 1 && i < path.length - 1) {
+                if (crosses(a, b, A) || crosses(a, b, B)) cost += 100000;
+                cost += obstacles.filter((r) => crosses(a, b, r)).length * 10000;
+              }
+            }
+            if (cost < score) { score = cost; best = [source, ...route, target]; }
+          }
+          return best || [source, target];
         },
         rpath = (P, r) => {
           let d = `M${P[0].x} ${P[0].y}`;
@@ -1996,6 +2121,16 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           return P[0];
         };
       /* double-click on a leg handle: add a bend (a small step in the line) there */
+      function routeFromStraight(g, q) {
+        const a = portExit(g.s0), b = portExit(g.t0);
+        if (Math.abs(g.s0.y - g.t0.y) < 0.5)
+          return [a, { x: a.x, y: q.y }, { x: b.x, y: q.y }, b];
+        if (Math.abs(g.s0.x - g.t0.x) < 0.5)
+          return [a, { x: q.x, y: a.y }, { x: q.x, y: b.y }, b];
+        return g.hz
+          ? [a, { x: q.x, y: a.y }, { x: q.x, y: b.y }, b]
+          : [a, { x: a.x, y: q.y }, { x: b.x, y: q.y }, b];
+      }
       function bend(key, i) {
         const g = EG[key],
           P = g.pts,
@@ -2087,14 +2222,16 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             dx = bc.x - ac.x,
             dy = bc.y - ac.y,
             hz = Math.abs(dx) / (A.w / 2 + B.w / 2) >= Math.abs(dy) / (A.h / 2 + B.h / 2),
-            sg = (hz ? dx : dy) >= 0 ? 1 : -1,
             lat = g[q.b + ">" + q.a] ? (q.a < q.b ? -16 : 16) : 0,
             key = q.a + ">" + q.b,
+            settings = edgeSettings(key),
             W = ewget(key, A, B),
             rt = !!(W && W.length),
-            s0 = hz ? { x: A.x + (sg > 0 ? A.w : 0), y: ac.y + lat } : { x: ac.x + lat, y: A.y + (sg > 0 ? A.h : 0) },
-            t0 = hz ? { x: B.x + (sg > 0 ? 0 : B.w), y: bc.y + lat } : { x: bc.x + lat, y: B.y + (sg > 0 ? 0 : B.h) },
-            P = rt ? orth(A, B, W, lat) : autoPath(s0, t0, hz),
+            P = settings.mode === "routed"
+              ? rt ? orth(A, B, W, lat, settings) : autoRoute(A, B, settings, lat)
+              : straightPorts(A, B, settings, lat),
+            s0 = P[0],
+            t0 = P[P.length - 1],
             draw = cleanPath(P),
             e1 = draw[draw.length - 1],
             e0 = draw[draw.length - 2],
@@ -2108,7 +2245,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             hs = (id) => (R[id].e.tags || []).includes(hl),
             flow = !!hl && (hs(q.a) || hs(q.b)),
             dm = (hl && !flow) || (focused && !activeKeys.has(key)) ? " dm" : "";
-          EG[key] = { a: q.a, b: q.b, pts: P, hz, s0, t0, routed: rt, r0: r0.id };
+          EG[key] = { a: q.a, b: q.b, pts: P, hz, s0, t0, mode: settings.mode, r0: r0.id };
           svg += `<path class="eh" data-e="${r0.id}" d="${d}"/><path class="ep${on}${dm}${flow ? " tag-flow" : ""}" d="${d}"/><path class="ah${on}${dm}${flow ? " tag-flow" : ""}" d="M0 0L-11-5L-11 5z" style="transform:translate(${e1.x}px,${e1.y}px) rotate(${ang}deg) scale(var(--iz,1))"/>`;
           if (flow) {
             const length = sum(P.slice(1).map((p, i) => Math.hypot(p.x - P[i].x, p.y - P[i].y))),
@@ -2119,11 +2256,14 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           }
           if (on)
             P.slice(1).forEach((v, k) => {
-              if (!rt && P.length > 2 && k !== 1) return;
               const u = P[k];
               if (Math.hypot(v.x - u.x, v.y - u.y) * T.z < 30) return;
               const o = Math.abs(u.y - v.y) < 0.5 ? "h" : Math.abs(u.x - v.x) < 0.5 ? "v" : "d";
               handles += `<g class="wh ${o}" data-ek="${esc(key)}" data-ei="${k}" style="transform:translate(${(u.x + v.x) / 2}px,${(u.y + v.y) / 2}px) scale(var(--iz,1))"><circle r="5.5"/></g>`;
+            });
+          if (sel?.t === "rel" && q.rs.some((r) => r.id === sel.id))
+            [["source", s0], ["target", t0]].forEach(([end, p]) => {
+              handles += `<g class="port-grip" data-edge-end="${end}" data-ek="${esc(key)}" style="transform:translate(${p.x}px,${p.y}px) scale(var(--iz,1))"><title>Drag to choose ${end} side</title><rect x="-6" y="-6" width="12" height="12" rx="3"/></g>`;
             });
           lab += `<div class="el${on}${dm}" data-e="${esc(r0.id)}" data-key="${esc(key)}" title="Drag to move label; double-click to center" style="left:${lp.x}px;top:${lp.y}px">${esc(r0.label)}${r0.tech ? ` <span class="tech">[${esc(r0.tech)}]</span>` : ""}${q.rs.length > 1 ? " +" + (q.rs.length - 1) : ""}</div>`;
         });
@@ -2518,7 +2658,13 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             sel = null;
             return inspector();
           }
-          r.innerHTML = `<h3>Relationship</h3><p class="mu" style="margin-bottom:10px">${esc((El(x.from) || {}).name)} to ${esc((El(x.to) || {}).name)}</p>${fld("Label", "label", x.label)}${fld("Technology", "tech", x.tech)}<button class="bt dg" data-a="delrel">Delete relationship</button>`;
+          const a = vis(x.from), b = vis(x.to),
+            key = a && b ? a + ">" + b : null,
+            settings = key ? edgeSettings(key) : null,
+            options = (items, selected) => items.map(([value, label]) =>
+              `<option value="${value}"${value === selected ? " selected" : ""}>${label}</option>`).join(""),
+            sideOptions = [["auto", "Automatic"], ["top", "Top"], ["right", "Right"], ["bottom", "Bottom"], ["left", "Left"]];
+          r.innerHTML = `<h3>Relationship</h3><p class="mu" style="margin-bottom:10px">${esc((El(x.from) || {}).name)} to ${esc((El(x.to) || {}).name)}</p>${fld("Label", "label", x.label)}${fld("Technology", "tech", x.tech)}${settings ? `<label>Path<select data-edge-setting="mode">${options([["straight", "Straight"], ["routed", "Routed"]], settings.mode)}</select></label><label>From side<select data-edge-setting="sourceSide">${options(sideOptions, settings.sourceSide)}</select></label><label>To side<select data-edge-setting="targetSide">${options(sideOptions, settings.targetSide)}</select></label><p class="mu">Drag the square end grips to change sides. Drag a round edge handle to route around nodes. Double-click a handle to add a bend.</p>` : ""}<button class="bt dg" data-a="delrel">Delete relationship</button>`;
           if (sel.fresh) {
             const i = r.querySelector("input");
             i.focus();
@@ -2766,6 +2912,18 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         if (e.target.tagName === "SELECT") inspector();
       });
       $("#rp").addEventListener("change", (e) => {
+        const setting = e.target.dataset.edgeSetting;
+        if (setting && sel?.t === "rel") {
+          const rel = S.rels.find((r) => r.id === sel.id),
+            a = rel && vis(rel.from), b = rel && vis(rel.to);
+          if (a && b) {
+            setEdgeSetting(a + ">" + b, setting, e.target.value);
+            render();
+            inspector();
+            save();
+          }
+          return;
+        }
         if (!sel || !e.target.matches("[data-group]")) return;
         const gid = e.target.value;
         if (gid === "__new__") {
@@ -2906,6 +3064,11 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           dive(zoom.dataset.dive);
           return;
         }
+        const port = e.target.closest("[data-edge-end]");
+        if (port) {
+          drag = { k: "port", key: port.dataset.ek, end: port.dataset.edgeEnd };
+          return;
+        }
         const eh = e.target.closest("[data-ek]");
         if (eh) {
           const key = eh.dataset.ek,
@@ -2931,8 +3094,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             g,
             hor,
             p: w2(e),
-            base: hor ? u.y : u.x,
-            W0: g.routed ? g.pts.slice(1, -1).map((q) => ({ x: q.x, y: q.y })) : [],
+            W0: g.mode === "routed" ? g.pts.slice(1, -1).map((q) => ({ x: q.x, y: q.y })) : [],
           };
           return;
         }
@@ -3002,7 +3164,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             drag = { k: "label", key: k, sx: e.clientX, sy: e.clientY, ox: offset.x, oy: offset.y };
             return;
           }
-          if (t.classList.contains("eh") && k && ewget(k) && lastDown.id === "ed" + id && now - lastDown.t < 350) {
+          if (t.classList.contains("eh") && k && edgeSettings(k).mode === "routed" && lastDown.id === "ed" + id && now - lastDown.t < 350) {
             ewset(k, null);
             lastDown = {};
             render();
@@ -3034,6 +3196,18 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           T.x = drag.ox + e.clientX - drag.sx;
           T.y = drag.oy + e.clientY - drag.sy;
           applyT();
+        } else if (drag.k === "port") {
+          const g = EG[drag.key],
+            r = g && R[drag.end === "source" ? g.a : g.b];
+          if (!r) return;
+          const q = w2(e),
+            dx = (q.x - r.x - r.w / 2) / (r.w / 2),
+            dy = (q.y - r.y - r.h / 2) / (r.h / 2),
+            side = Math.abs(dx) > Math.abs(dy)
+              ? dx >= 0 ? "right" : "left"
+              : dy >= 0 ? "bottom" : "top";
+          setEdgeSetting(drag.key, drag.end === "source" ? "sourceSide" : "targetSide", side);
+          render();
         } else if (drag.k === "child") {
           const v = V(),
             L = PK();
@@ -3070,23 +3244,11 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           const q = w2(e),
             g = drag.g;
           let W;
-          if (!g.routed)
-            W = g.hz
-              ? [{ x: q.x, y: g.s0.y }, { x: q.x, y: g.t0.y }]
-              : [{ x: g.s0.x, y: q.y }, { x: g.t0.x, y: q.y }];
+          if (g.mode === "straight")
+            W = routeFromStraight(g, q);
           else {
             const ax = drag.hor ? "y" : "x",
-              span = (Rc) => (drag.hor ? [Rc.y + 10, Rc.y + Rc.h - 10] : [Rc.x + 10, Rc.x + Rc.w - 10]);
-            let t = drag.hor ? q.y - drag.p.y : q.x - drag.p.x,
-              lo = -1e9,
-              hi = 1e9;
-            [[0, R[g.a]], [g.pts.length - 2, R[g.b]]].forEach(([n, Rc]) => {
-              if (drag.i !== n) return;
-              const sp = span(Rc);
-              lo = Math.max(lo, sp[0] - drag.base);
-              hi = Math.min(hi, sp[1] - drag.base);
-            });
-            t = Math.max(lo, Math.min(hi, t));
+              t = drag.hor ? q.y - drag.p.y : q.x - drag.p.x;
             W = drag.W0.map((p, j) => (j === drag.i - 1 || j === drag.i ? { ...p, [ax]: p[ax] + t } : p));
           }
           ewset(drag.key, W);
@@ -3124,6 +3286,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       addEventListener("pointerup", (e) => {
         if (!drag) return;
         clearSnapGuides();
+        if (drag.k === "port") inspector();
         if (drag.k === "leg") {
           ewFix(drag.key);
           render();
@@ -3578,9 +3741,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             if (kind === "route") {
               let route;
               try { route = JSON.parse(val); } catch (e) { throw new Error('View "' + v.name + '": invalid route ' + id); }
-              const valid = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.y);
-              if (!(Array.isArray(route) && route.every(valid)) &&
-                  !(route && Array.isArray(route.points) && route.points.every(valid) && valid(route.from) && valid(route.to)))
+              if (!validEdgeRoute(route))
                 throw new Error('View "' + v.name + '": invalid route ' + id);
               (ew[layer] = ew[layer] || {})[id] = route;
             } else if (!point) {
