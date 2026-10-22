@@ -1486,6 +1486,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             safeId(v.id) && typeof v.name === "string" && v.nodes &&
             !Array.isArray(v.nodes) &&
             Object.entries(v.nodes).every(([id, p]) => ids.has(id) && point(p)) &&
+            (!v.hidden || (Array.isArray(v.hidden) && v.hidden.every((id) => ids.has(id)))) &&
             pointsByLayer(v.pos) && pointsByLayer(v.tp) && pointsByLayer(v.labels) &&
             (!v.lay || Object.values(v.lay).every((l) => l && pointsByLayer({ x: l.x || {} }))) &&
             (!v.groups || (Array.isArray(v.groups) && v.groups.every((g) =>
@@ -1569,6 +1570,11 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         }
         return a;
       };
+      const hiddenIn = (v, id) => chain(id).some((a) => (v.hidden || []).includes(a));
+      const shownIn = (v, id) =>
+        !hiddenIn(v, id) && chain(id).some((a) => v.nodes[a]);
+      const relationshipHiddenIn = (v, r) =>
+        hiddenIn(v, r.from) || hiddenIn(v, r.to);
       const dsc = (id) =>
         S.els
           .filter((c) => c.parent === id)
@@ -1702,17 +1708,18 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           L = LV(),
           ED = FOC
             ? Math.max(1, Math.min(L - 1, 3) - depth(El(FOC)))
-            : Math.min(L - 1, 3);
+            : Math.min(L - 1, 3),
+          hidden = new Set(v.hidden || []);
         R = {};
         const kids = (id) =>
-          S.els.filter((e) => e.parent === id && !v.nodes[e.id]);
+          S.els.filter((e) => e.parent === id && !hidden.has(e.id) && !v.nodes[e.id]);
         const size = (e, d) => {
           const k = d < ED ? kids(e.id) : [],
             shape = SHP[shp(e)],
             width = Math.max(shape.s[0], e.type === "code" ? 240 : 0),
             insets = shape.i(width, shape.s[1]),
             own = contentHeight(e, width, insets, L),
-            hasChildren = S.els.some((c) => c.parent === e.id);
+            hasChildren = kids(e.id).length > 0;
           if (!k.length) {
             let h = Math.max(shape.s[1], own + insets[0] + insets[2] + 12 + (hasChildren ? 16 : 0));
             let w = width;
@@ -1787,6 +1794,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             SW = 150,
             SH = 44;
           S.rels.forEach((r) => {
+            if (relationshipHiddenIn(v, r)) return;
             if (ins.has(r.from) === ins.has(r.to)) return;
             const o = ins.has(r.from) ? r.to : r.from;
             if (El(o) && !ids.includes(o)) ids.push(o);
@@ -1832,7 +1840,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         }
         Object.entries(v.nodes).forEach(([id, p]) => {
           const e = El(id);
-          if (!e) return;
+          if (!e || chain(id).some((a) => hidden.has(a))) return;
           const s = size(e, depth(e)),
             q = tpos(id);
           put(e, s, q.x + W / 2 - s.w / 2, q.y + H / 2 - s.h / 2, id);
@@ -2214,6 +2222,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           grps += `<div class="grp" data-group="${esc(gp.id)}" style="left:${x0 - pad}px;top:${y0 - top}px;width:${x1 - x0 + pad * 2}px;height:${y1 - y0 + top + pad}px"><span class="gn">${esc(gp.name)}</span></div>`;
         });
         S.rels.forEach((r) => {
+          if (relationshipHiddenIn(V(), r)) return;
           const a = vis(r.from),
             b = vis(r.to);
           if (!a || !b || a === b) return;
@@ -2291,7 +2300,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             bt = (e.tags || []).length ? 6 : 0,
             ins = sp ? sp.i(r.w, r.h) : [8, 12, 8, 12],
             icp = sp ? sp.ic(r.w, r.h) : [8, 9],
-            children = S.els.some((c) => c.parent === id),
+            children = S.els.some((c) => c.parent === id && !hiddenIn(V(), c.id) && !V().nodes[c.id]),
             dim = (hl && !(e.tags || []).includes(hl)) || (focused && !linked.has(id));
           nodes += `<div class="n ${e.type}${r.ex ? " x" : ""}${r.stub ? " stub" : ""}${sp && sp.c === 1 ? " cc" : sp && sp.c === 2 ? " ct" : ""}${dim ? " dm" : ""}${hl && (e.tags || []).includes(hl) ? " hl" : ""}${focused && linked.has(id) && id !== focused ? " conn" : ""}${selectedNodes.has(id) ? " sel" : ""}" data-id="${esc(id)}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;--c:${t[1]};--tc:${hl ? tcol(hl) : "transparent"}">${shapeSVG(e, r)}<div class="in" style="padding:${ins[0]}px ${ins[1]}px ${ins[2] + bt + (children && !r.stub ? 15 : 0)}px ${ins[3]}px"><div class="tp">${t[0]}</div><div class="nm">${esc(e.name)}</div>${e.tech ? `<div class="tech">[${esc(e.tech)}]</div>` : ""}${e.desc ? `<div class="desc">${esc(e.desc)}</div>` : ""}${(L > 3 || e.type === "code") && e.code && !r.ex ? `<div class="code">${esc(e.code)}</div>` : ""}</div><span class="ic" style="top:${icp[0]}px;right:${icp[1]}px">${ico(e)}</span>${children && !r.stub ? `<button class="zoom" data-dive="${esc(id)}" title="Open ${esc(e.name)}" aria-label="Open ${esc(e.name)}"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L21 21M10 7v6M7 10h6"/></svg></button>` : ""}<i class="h" data-from="${esc(id)}"></i></div>`;
         });
@@ -2584,8 +2593,10 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         const v = V();
         let id;
         if (FOC) {
-          if (!/^(new:(container|component|code)|shape:)/.test(d)) return;
-          par = par || FOC;
+          const restoring = d.startsWith("el:") && hiddenIn(v, d.slice(3)) &&
+            chain(d.slice(3)).includes(FOC);
+          if (!restoring && !/^(new:(container|component|code)|shape:)/.test(d)) return;
+          if (!restoring) par = par || FOC;
         }
         if (d.startsWith("shape:")) {
           const shape = d.slice(6),
@@ -2619,6 +2630,17 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         } else {
           id = d.slice(3);
           if (!El(id)) return;
+          const ancestors = chain(id);
+          if (hiddenIn(v, id)) {
+            v.hidden = (v.hidden || []).filter((a) => !ancestors.includes(a));
+            if (ancestors.slice(1).some((a) => v.nodes[a])) {
+              if (LV() < Math.min(4, depth(El(id)) + 1))
+                selectLevel(Math.min(4, depth(El(id)) + 1));
+              pick({ t: "el", id });
+              save();
+              return;
+            }
+          }
           if (!R[id]) {
             v.nodes[id] = { x: p.x - W / 2, y: p.y - H / 2 };
             inheritLayout(id);
@@ -2645,14 +2667,22 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           return;
         }
         if (a === "delrel") S.rels = S.rels.filter((q) => q.id !== sel.id);
-        if (a === "rm" && V().nodes[sel.id]) delete V().nodes[sel.id];
+        if (a === "rm" && sel.t === "el") {
+          const v = V(), e = El(sel.id);
+          delete v.nodes[sel.id];
+          if (e?.parent && !(v.hidden || []).includes(sel.id))
+            (v.hidden = v.hidden || []).push(sel.id);
+        }
         if (a === "del") {
           const ids = [sel.id, ...dsc(sel.id)];
           S.els = S.els.filter((x) => !ids.includes(x.id));
           S.rels = S.rels.filter(
             (r) => !ids.includes(r.from) && !ids.includes(r.to),
           );
-          S.views.forEach((v) => ids.forEach((i) => delete v.nodes[i]));
+          S.views.forEach((v) => {
+            ids.forEach((i) => delete v.nodes[i]);
+            v.hidden = (v.hidden || []).filter((i) => !ids.includes(i));
+          });
         }
         sel = null;
         selectedNodes.clear();
@@ -2712,7 +2742,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           return inspector();
         }
         const bad = [e.id, ...dsc(e.id)],
-          vs = S.views.filter((v) => chain(e.id).some((a) => v.nodes[a]));
+          vs = S.views.filter((v) => shownIn(v, e.id));
         r.innerHTML = `<h3>Element</h3>${fld("Name", "name", e.name)}<label>Type<select data-f="type">${Object.entries(
           TY,
         )
@@ -2751,10 +2781,9 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
       function model() {
         $("#ml").innerHTML = ord()
           .map((e) => {
-            const n = S.views.filter((v) =>
-              chain(e.id).some((a) => v.nodes[a]),
-            ).length;
-            return `<div class="mi${selectedNodes.has(e.id) || sel && sel.id === e.id ? " on" : ""}" draggable="true" data-m="${e.id}" style="padding-left:${8 + depth(e) * 14}px;--c:${TY[e.type][1]}" title="Drag onto another element to set its parent"><i></i><span>${esc(e.name)}</span><em title="Diagrams using this element">${n}</em><button class="mi-x" type="button" data-model-del="${e.id}" title="Delete from shared model" aria-label="Delete ${esc(e.name)} from shared model">×</button></div>`;
+            const n = S.views.filter((v) => shownIn(v, e.id)).length,
+              hidden = hiddenIn(V(), e.id);
+            return `<div class="mi${selectedNodes.has(e.id) || sel && sel.id === e.id ? " on" : ""}" draggable="true" data-m="${e.id}" style="padding-left:${8 + depth(e) * 14}px;--c:${TY[e.type][1]}" title="${hidden ? "Hidden in this diagram. Click to show it again." : "Drag onto another element to set its parent"}"><i></i><span>${esc(e.name)}</span><em title="Diagrams using this element">${n}</em><button class="mi-x" type="button" data-model-del="${e.id}" title="Delete from shared model" aria-label="Delete ${esc(e.name)} from shared model">×</button></div>`;
           })
           .join("");
       }
@@ -2768,6 +2797,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
         );
         S.views.forEach((v) => {
           ids.forEach((i) => delete v.nodes[i]);
+          v.hidden = (v.hidden || []).filter((i) => !ids.includes(i));
           (v.groups || []).forEach(
             (g) => (g.members = g.members.filter((i) => !ids.includes(i))),
           );
@@ -3635,6 +3665,9 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           S.els
             .filter((e) => v.nodes[e.id])
             .forEach((e) => o.push(`            include ${e.id}`));
+          (v.hidden || [])
+            .filter((id) => El(id))
+            .forEach((id) => o.push(`            exclude ${id}`));
           (v.groups || []).forEach((g) => {
             const ids = g.members.filter((id) => v.nodes[id] && El(id));
             if (ids.length)
@@ -3768,6 +3801,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
                   id: v.length > 1 ? v[0] : "v" + (views.length + 1),
                   name: v.length > 1 ? v[1] : v[0] || "Diagram",
                   inc: [],
+                  exc: [],
                   props: {},
                   groups: [],
                 };
@@ -3778,9 +3812,10 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             bad('expected custom "id" "title" {');
           }
           if (c.k === "view") {
-            if (w === "include") {
+            if (w === "include" || w === "exclude") {
               b.slice(1).forEach((x) => {
-                if (typeof x === "string" && x !== "*") c.ref.inc.push(x);
+                if (typeof x === "string" && x !== "*")
+                  (w === "include" ? c.ref.inc : c.ref.exc).push(x);
               });
               return;
             }
@@ -3891,6 +3926,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           });
         const VS = views.map((v) => {
           const nodes = {},
+            hidden = [],
             pos = {},
             tp = {},
             ew = {},
@@ -3905,6 +3941,11 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
               xy && xy.length === 2 && xy.every(isFinite)
                 ? { x: xy[0], y: xy[1] }
                 : { x: (j % 4) * 300, y: 80 + ((j / 4) | 0) * 200 };
+          });
+          (v.exc || []).forEach((id) => {
+            if (!byId[id])
+              throw new Error('View "' + v.name + '": unknown element ' + id);
+            if (!hidden.includes(id)) hidden.push(id);
           });
           Object.entries(v.props).forEach(([k, val]) => {
             const m = /^pos\.(\d)\.(.+)$/.exec(k),
@@ -3937,6 +3978,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
             id: v.id,
             name: v.name,
             nodes,
+            hidden,
             pos,
             tp,
             ew,
@@ -4116,6 +4158,7 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           id,
           name,
           nodes: ids(v.nodes),
+          hidden: [...new Set((v.hidden || []).map((id) => map[id]).filter(Boolean))],
           pos: byLayer(v.pos),
           tp: byLayer(v.tp),
           ew: keyed(v.ew),
