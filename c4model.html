@@ -2555,38 +2555,64 @@ if(n+2>=i)return e;if(t=255&e[++n],128!=(192&t))return e;if(o=255&e[++n],128!=(1
           anchors = (o) => Object.keys(v.nodes).filter((k) => k !== id && o.nodes[k]),
           cands = S.views.filter((o) => o !== v && o.nodes[id]);
         if (!cands.length) return;
-        const src = cands.map((o) => [o, anchors(o).length]).sort((a, b) => b[1] - a[1])[0][0],
+        const kids = dsc(id),
+          own = new Set([id, ...kids]),
+          inside = (x) => chain(x).some((a) => own.has(a)),
+          /* how much hand-made layout a diagram holds for this element and what is inside it:
+             child positions, edge routes / label offsets between them, stub positions */
+          richness = (o) => {
+            let n = 0;
+            Object.values(o.pos || {}).forEach((m) => kids.forEach((c) => { if (m[c]) n++; }));
+            ["ew", "labels"].forEach((key) =>
+              Object.values(o[key] || {}).forEach((m) =>
+                Object.keys(m).forEach((k) => {
+                  const [a, b] = k.split(">");
+                  if (inside(a) && inside(b)) n++;
+                })));
+            Object.keys(o.lay || {}).forEach((k) => { if (own.has(k.replace(/@l\d+$/, ""))) n++; });
+            return n;
+          },
+          ranked = cands.map((o) => ({ o, anchors: anchors(o).length, rich: richness(o) })),
+          /* placement follows the diagram sharing the most elements with this one ... */
+          src = [...ranked].sort((a, b) => b.anchors - a.anchors)[0].o,
+          /* ... but the inner layout (child positions, edge styling) comes from the diagram that
+             actually holds the most of it, so an unstyled older tab can no longer shadow a styled one */
+          lsrc = [...ranked].sort((a, b) => b.rich - a.rich || (b.o === src) - (a.o === src))[0].o,
           anc = anchors(src)[0],
           sp = src.nodes[id],
           dx = anc ? v.nodes[anc].x - src.nodes[anc].x : v.nodes[id].x - sp.x,
           dy = anc ? v.nodes[anc].y - src.nodes[anc].y : v.nodes[id].y - sp.y,
           shift = (p) => ({ x: p.x + dx, y: p.y + dy }),
-          kids = dsc(id);
+          order = [...new Set([lsrc, src, ...[...ranked].sort((a, b) => b.rich - a.rich).map((r) => r.o)])];
         v.nodes[id] = shift(sp);
         Object.entries(src.tp || {}).forEach(([L, m]) => {
           if (m[id]) ((v.tp = v.tp || {})[L] = v.tp[L] || {})[id] = shift(m[id]);
         });
-        Object.entries(src.pos || {}).forEach(([L, m]) =>
+        Object.entries(lsrc.pos || {}).forEach(([L, m]) =>
           kids.forEach((c) => {
             if (!m[c]) return;
             const t = ((v.pos = v.pos || {})[L] = v.pos[L] || {});
             if (!t[c]) t[c] = { ...m[c] };
           }),
         );
-        ["ew", "labels"].forEach((key) =>
-          Object.entries(src[key] || {}).forEach(([layer, m]) => {
-            if (layer[0] === "f" && !inView(layer.slice(1))) return;
-            Object.entries(m).forEach(([k, val]) => {
-              const [a, b] = k.split(">");
-              if (!inView(a) || !inView(b)) return;
-              const t = ((v[key] = v[key] || {})[layer] = v[key][layer] || {});
-              if (!t[k]) t[k] = Array.isArray(val) ? val.map(shift) : structuredClone(val);
-            });
-          }),
+        /* edge routes and label offsets: first diagram that has a value for an edge wins,
+           the others fill the gaps (an edge may only be styled in one of them) */
+        order.forEach((o) =>
+          ["ew", "labels"].forEach((key) =>
+            Object.entries(o[key] || {}).forEach(([layer, m]) => {
+              if (layer[0] === "f" && !inView(layer.slice(1))) return;
+              Object.entries(m).forEach(([k, val]) => {
+                const [a, b] = k.split(">");
+                if (!inView(a) || !inView(b)) return;
+                const t = ((v[key] = v[key] || {})[layer] = v[key][layer] || {});
+                if (!t[k]) t[k] = Array.isArray(val) ? val.map(shift) : structuredClone(val);
+              });
+            }),
+          ),
         );
-        Object.entries(src.lay || {}).forEach(([k, l]) => {
+        Object.entries(lsrc.lay || {}).forEach(([k, l]) => {
           v.lay = v.lay || {};
-          if (kids.concat(id).includes(k.replace(/@l\d+$/, "")) && !v.lay[k]) v.lay[k] = structuredClone(l);
+          if (own.has(k.replace(/@l\d+$/, "")) && !v.lay[k]) v.lay[k] = structuredClone(l);
         });
       }
       function add(d, p, par) {
